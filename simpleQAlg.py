@@ -34,6 +34,7 @@ observedByAlg = [] #currently, the algorithm hasn't measured any datapoints
 backg = H.LinSpline(None)
 basisSymmetry = copy(symmetry)
 
+
 def setInitParams():
 
     print("Setting parameters...")
@@ -42,7 +43,7 @@ def setInitParams():
     cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
 
     #Define a model
-    m = Mod.Model(tt, observed, backg, 1.548048,-0.988016,0.338780, wavelength, spaceGroup, cell,
+    m = Mod.Model(tt, observedByAlg, backg, 1.548048,-0.988016,0.338780, wavelength, spaceGroup, cell,
                 (atomList, magAtomList), exclusions, magnetic=True,
                 symmetry=symmetry, newSymmetry=basisSymmetry, base=6512, scale=59.08, eta=0.0382, zero=0.08416, error=error)
 
@@ -69,6 +70,7 @@ def fit(model):
     #Crate a problem from the model with bumps,
     #then fit and solve it
     problem = bumps.FitProblem(model)
+    print(problem.labels())
     fitted = fitter.MPFit(problem)
     x, dx = fitted.solve()
 
@@ -98,24 +100,24 @@ def fit(model):
 #Q learning methods
 #---------------------------------------
 
-#Q params
-epsilon = 1
-minEps = 0.01
-epsDecriment = 0.95
-
-qtable = []
-
-alpha = .01
-gamma = .9
-
-maxEpisodes = 1000
-
 def learn():
 
-    model, referenceHkls = setInitParams()
-    maxSteps = referenceHkls.length()
+    #Q params
+    epsilon = 1
+    minEps = 0.01
+    epsDecriment = 0.99
 
-    qtable = np.zeros(referenceHkls.length(), referenceHkls.length())    #qtable(state, action)
+    qtable = []
+
+    alpha = .01
+    gamma = .9
+
+    maxEpisodes = 1
+
+    model, referenceHkls = setInitParams()
+    maxSteps = len(referenceHkls)
+
+    qtable = np.zeros([len(referenceHkls), len(referenceHkls)])    #qtable(state, action)
 
     for episode in range(maxEpisodes):
 
@@ -124,15 +126,17 @@ def learn():
 
         for step in range(maxSteps):
 
+	    reward = 0
+
             guess = rand.random()
             if (guess < epsilon):
                 #Explore: choose a random action from the posibilities
-                action = random.choice(remainingHkls)
+                action = rand.choice(remainingHkls)
 
             else:
                 #Exploit: choose best option, based on qtable
                 qValue = 0
-                for (hkl in remainingHkls):
+                for hkl in remainingHkls:
                     if (qtable[referenceHkls.index(state), referenceHkls.index(hkl)] > qValue):
                         qValue = qtable[referenceHkls.index(state), referenceHkls.index(hkl)]
                         action = hkl
@@ -141,22 +145,29 @@ def learn():
             remainingHkls.remove(action)
 
             #Find the data for this hkl value and add it to the model
-            for reflection in observed:
-                if (reflection.hkl.equals(action)):
+            for reflection in model.reflections:
+                if (reflection.hkl == action):
                     observedByAlg.append(reflection)
-                    model.observed.append(reflection)
+                    #model.observed.append()
                     model.update()     #may not be necessary
 
-            x, dx = fit(model)
+            print("s, a", state, action)
 
-#            reward = #figure out a meter for improved fit
+	    if (step > 1):
+                x, dx = fit(model)
+                print("dx", dx)
+    	        reward -= 1
+                if (dx < prevDx):
+                    reward += 1
 
-            #TODO, action and state space in qtable
-#            qtable[] =  qtable[] + alpha*(reward + gamma*(np.max(q[state,:])) - q[])
+                print("reward", reward)
 
-            #TODO update state
+                qtable[referenceHkls.index(state), referenceHkls.index(action)] =  qtable[referenceHkls.index(state), referenceHkls.index(action)] + \
+                                                                                   alpha*(reward + gamma*(np.max(qtable[referenceHkls.index(state),:])) - \
+                                                                                   qtable[referenceHkls.index(state), referenceHkls.index(action)])
+                prevDx = dx
 
-
+            state = action
 
             if (not remainingHkls):
                 break
@@ -168,8 +179,4 @@ def learn():
 
 
 
-model, hkls = setInitParams()
-fit(model)
-
-
-
+learn()
