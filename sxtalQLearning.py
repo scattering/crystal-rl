@@ -44,7 +44,7 @@ def setInitParams():
     #Define a model
     m = S.Model([], [], backg, wavelength, spaceGroup, cell,
                 [atomList], exclusions,
-                scale=0.06298, hkls=[],error=[],  extinction=[0.0001054])
+                scale=0.06298, hkls=refList,error=[],  extinction=[0.0001054])
 
     #Set a range on the x value of the first atom in the model
 #    m.atomListModel.atomModels[0].z = .8
@@ -125,7 +125,7 @@ def learn():
 
             print(action)
             print(refList[0].hkl)
-            print(refList.reflections())
+#            print(refList.reflections())
             #Find the data for this hkl value and add it to the model
             refsIter = refList.__iter__()
             while True:
@@ -133,7 +133,10 @@ def learn():
                     reflection = refList.next()
                     if (reflection.hkl == action.hkl):
                         print("adding ref")
-                        model.reflections.append(reflection)
+#                        model.reflections.append(reflection)
+
+#                        model.reflections.set_reflection_list_nref(model.reflections.nref+1)
+#                        model.reflections.__setitem__(model.reflections.nref-1, reflection)
                         model.error.append(error[refsIter.index])
                         model.observed = np.append(model.observed, [sfs2[refsIter.index]])
                         model.tt = np.append(model.tt, [tt[refsIter.index]])
