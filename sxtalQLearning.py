@@ -1,4 +1,4 @@
-import os,sys;sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import os,sys;sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 import os
 from copy import copy
 import numpy as np
@@ -21,8 +21,8 @@ np.seterr(divide="ignore",invalid="ignore")
 #Set data files
 DATAPATH = os.path.dirname(os.path.abspath(__file__))
 backgFile = None
-observedFile = os.path.join(DATAPATH,r"prnio.int")
-infoFile = os.path.join(DATAPATH,r"prnio.cfl")
+observedFile = os.path.join(DATAPATH,r"../prnio.int")
+infoFile = os.path.join(DATAPATH,r"../prnio.cfl")
 
 #Read data
 spaceGroup, crystalCell, atomList = H.readInfo(infoFile)
@@ -42,19 +42,15 @@ def setInitParams():
     print(error)
 
     #Define a model
-    m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
+    m = S.Model([], [], backg, wavelength, spaceGroup, cell,
                 [atomList], exclusions,
-                scale=0.06298, error=error, hkls=refList, extinction=[0.0001054])
+                scale=0.06298, hkls=[],error=[],  extinction=[0.0001054])
 
     #Set a range on the x value of the first atom in the model
-    m.atomListModel.atomModels[0].z.range(0,1)
+#    m.atomListModel.atomModels[0].z = .8
+    m.atomListModel.atomModels[0].z.range(0.4,1)
 
-    #Generate list of hkls
-    hkls = []
-    for r in m.reflections:
-        hkls.append(r.hkl)
-
-    return m, hkls
+    return m
 
 
 def fit(model):
@@ -64,15 +60,15 @@ def fit(model):
     #Crate a problem from the model with bumps,
     #then fit and solve it
     problem = bumps.FitProblem(model)
-    print(problem.labels())
     fitted = fitter.MPFit(problem)
     x, dx = fitted.solve()
 
-    print(problem.nllf())
+    print(problem.labels())
+    print(problem.chisq())
     problem.model_update()
     model.update()
 
-    print(problem.nllf())
+    print(problem.chisq())
     return x, dx
 
 #---------------------------------------
@@ -86,25 +82,24 @@ def learn():
     minEps = 0.01
     epsDecriment = 0.99
 
-    qtable = []
-
     alpha = .01
     gamma = .9
 
     maxEpisodes = 1
 
-    model, referenceHkls = setInitParams()
-    maxSteps = len(referenceHkls)
+    maxSteps = len(refList)
 
-    qtable = np.zeros([len(referenceHkls), len(referenceHkls)])    #qtable(state, action)
+    qtable = np.zeros([len(refList), len(refList)])    #qtable(state, action)
 
     for episode in range(maxEpisodes):
 
-        model, remainingHkls = setInitParams()
-        refs = model.reflections
-        model.reflections = []
+        model = setInitParams()
         state = 0
         prevDx = None
+
+        remainingRefs = []
+        for i in range(len(refList)):
+            remainingRefs.append(i)
 
         for step in range(maxSteps):
 
@@ -113,36 +108,64 @@ def learn():
             guess = rand.random()
             if (guess < epsilon):
                 #Explore: choose a random action from the posibilities
-                action = rand.choice(remainingHkls)
-
+                actionIndex = rand.choice(remainingRefs)
+                action = refList[actionIndex]
+                print(action)
             else:
                 #Exploit: choose best option, based on qtable
                 qValue = 0
-                for hkl in remainingHkls:
-                    if (qtable[referenceHkls.index(state), referenceHkls.index(hkl)] > qValue):
-                        qValue = qtable[referenceHkls.index(state), referenceHkls.index(hkl)]
-                        action = hkl
+                for hklIndex in remainingRefs:
+                    if (qtable[refList.index(state), hklIndex] > qValue):
+                        qValue = qtable[refList.index(state), hklIndex]
+                        action = refList[hklIndex]
 
             #No repeats
-            remainingHkls.remove(action)
+#            print(action, refList.index(action))
+#            del remainingRefs[refList.index(action)]
 
+            print(action)
+            print(refList[0].hkl)
+            print(refList.reflections())
             #Find the data for this hkl value and add it to the model
-            for reflection in refs:        #TODO, should this be adding hkls not refs?
-                if (reflection.hkl == action):
-                    model.reflections.append(reflection)
-                    model.update()     #may not be necessary
+            refsIter = refList.__iter__()
+            while True:
+                try:
+                    reflection = refList.next()
+                    if (reflection.hkl == action.hkl):
+                        print("adding ref")
+                        model.reflections.append(reflection)
+                        model.error.append(error[refsIter.index])
+                        model.observed = np.append(model.observed, [sfs2[refsIter.index]])
+                        model.tt = np.append(model.tt, [tt[refsIter.index]])
+                        model.update()     #may not be necessary
+                        break
+
+                except StopIteration:
                     break
 
-            print("s, a", state, action)
-            print (len(model.reflections))
+
+
+#            for reflection in refList:        #TODO, should this be adding hkls not refs?
+#                if (reflection.hkl == action.hkl):
+#                    print("adding ref")
+#                    model.reflections.append(reflection)
+#                    model.error.append(error[refList.index(reflection)])
+#                    model.observed.append(sf2s[refList.index(reflection)])
+#                    model.tt.append(tt[refList.index(reflection)])
+#                    model.update()     #may not be necessary
+#                    break
+
+            print(model.numpoints())
+            print(model.reflections)
+            print(model.error)
+            print("_____________________")
+
 	    if (step > 1):        #TODO not necessary
                 x, dx = fit(model)
-                print(model.reflections)
+
    	        reward -= 1
                 if (prevDx != None and dx < prevDx):
                     reward += 1
-
-                print("reward", reward)
 
                 qtable[referenceHkls.index(state), referenceHkls.index(action)] =  qtable[referenceHkls.index(state), referenceHkls.index(action)] + \
                                                                                    alpha*(reward + gamma*(np.max(qtable[referenceHkls.index(state),:])) - \
@@ -151,7 +174,7 @@ def learn():
 
             state = action
 
-            if (not remainingHkls):
+            if (len(remainingRefs) == 0):
                 break
 
         #Decriment epsilon to explote more as the model learns
