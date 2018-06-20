@@ -44,14 +44,12 @@ def setInitParams():
     #Define a model
     m = S.Model([], [], backg, wavelength, spaceGroup, cell,
                 [atomList], exclusions,
-                scale=0.06298, hkls=refList,error=[],  extinction=[0.0001054])
+                scale=0.06298, error=[],  extinction=[0.0001054])
 
     #Set a range on the x value of the first atom in the model
-#    m.atomListModel.atomModels[0].z = .8
-    m.atomListModel.atomModels[0].z.range(0.4,1)
+    m.atomListModel.atomModels[0].z.range(0.3,0.4)
 
     return m
-
 
 def fit(model):
 
@@ -60,11 +58,15 @@ def fit(model):
     #Crate a problem from the model with bumps,
     #then fit and solve it
     problem = bumps.FitProblem(model)
-    fitted = fitter.MPFit(problem)
-    x, dx = fitted.solve()
+#    monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
 
+    fitted = fitter.MPFit(problem)
+   # x, dx = fitted.solve()
+    x, dx = fitted.solve()
+    print(problem.getp())
     print(problem.labels())
-    print(problem.chisq())
+    print(fitted)
+    print(x, dx)
     problem.model_update()
     model.update()
 
@@ -86,7 +88,6 @@ def learn():
     gamma = .9
 
     maxEpisodes = 1
-
     maxSteps = len(refList)
 
     qtable = np.zeros([len(refList), len(refList)])    #qtable(state, action)
@@ -101,6 +102,9 @@ def learn():
         for i in range(len(refList)):
             remainingRefs.append(i)
 
+        visited = []
+        observed = []
+
         for step in range(maxSteps):
 
 	    reward = 0
@@ -110,41 +114,51 @@ def learn():
                 #Explore: choose a random action from the posibilities
                 actionIndex = rand.choice(remainingRefs)
                 action = refList[actionIndex]
-                print(action)
+
             else:
                 #Exploit: choose best option, based on qtable
                 qValue = 0
-                for hklIndex in remainingRefs:
+                for actionIndex in remainingRefs:
                     if (qtable[refList.index(state), hklIndex] > qValue):
                         qValue = qtable[refList.index(state), hklIndex]
-                        action = refList[hklIndex]
+                        action = refList[actionIndex]
 
             #No repeats
-#            print(action, refList.index(action))
-#            del remainingRefs[refList.index(action)]
+            remainingRefs.remove(actionIndex)
 
-            print(action)
-            print(refList[0].hkl)
-#            print(refList.reflections())
+            print(action.hkl)
+            visited.append(action)
+
             #Find the data for this hkl value and add it to the model
-            refsIter = refList.__iter__()
-            while True:
-                try:
-                    reflection = refList.next()
-                    if (reflection.hkl == action.hkl):
-                        print("adding ref")
-#                        model.reflections.append(reflection)
+            print("adding ref")
 
-#                        model.reflections.set_reflection_list_nref(model.reflections.nref+1)
-#                        model.reflections.__setitem__(model.reflections.nref-1, reflection)
-                        model.error.append(error[refsIter.index])
-                        model.observed = np.append(model.observed, [sfs2[refsIter.index]])
-                        model.tt = np.append(model.tt, [tt[refsIter.index]])
-                        model.update()     #may not be necessary
-                        break
+#                        if model.refList is None:
+                            #newList = H.ReflectionList()
+                            #newList.set_reflection_list_nref(0)
+                            #H.funcs.alloc_reflist_array(newList)
+            model.refList = H.ReflectionList(visited)
+            print("made reflist")
+ #                       else:
+  #                          model.refList.append(reflection)
 
-                except StopIteration:
-                    break
+            model._set_reflections()
+
+            model.error.append(error[actionIndex])
+#                        model.observed = np.append(model.observed, [sfs2[refsIter.index]])
+            model.tt = np.append(model.tt, [tt[actionIndex]])
+
+            model.update()
+
+            observed.append(sfs2[actionIndex])
+            model._set_observations(observed)
+#                        model.reflections.set_reflections_list_nref(model.reflections.nref()+1)
+ #                       model.reflections[reflection]
+
+            model.update()     #may not be necessary
+#                      break
+
+ #               except StopIteration:
+  #                  break
 
 
 
@@ -158,25 +172,34 @@ def learn():
 #                    model.update()     #may not be necessary
 #                    break
 
-            print(model.numpoints())
-            print(model.reflections)
-            print(model.error)
-            print("_____________________")
+            print "points", model.numpoints()
 
-	    if (step > 1):        #TODO not necessary
+	    if (step > 0):        #TODO not necessary
                 x, dx = fit(model)
-
+                print(model.error)
    	        reward -= 1
                 if (prevDx != None and dx < prevDx):
                     reward += 1
 
-                qtable[referenceHkls.index(state), referenceHkls.index(action)] =  qtable[referenceHkls.index(state), referenceHkls.index(action)] + \
-                                                                                   alpha*(reward + gamma*(np.max(qtable[referenceHkls.index(state),:])) - \
-                                                                                   qtable[referenceHkls.index(state), referenceHkls.index(action)])
+   #             refsIter = refList.__iter__()
+    #            while True:
+     #               try:
+      #                  reflection = refsIter.next()
+       #                 if reflection.hkl == action.hkl:
+        #                    actionIndex = refsIter.index
+         #               if reflection.hkl == state.hkl:
+          #                  stateIndex = refsIter.index
+           #         except StopIteration:
+            #           break
+
+                qtable[stateIndex, actionIndex] =  qtable[stateIndex, actionIndex] + \
+                                                   alpha*(reward + gamma*(np.max(qtable[stateIndex,:])) - \
+                                                   qtable[stateIndex, actionIndex])
                 prevDx = dx
 
             state = action
-
+            stateIndex = actionIndex
+            print("_______________________")
             if (len(remainingRefs) == 0):
                 break
 
@@ -185,6 +208,6 @@ def learn():
         if (epsilon < minEps):
            epsilon = minEps
 
-
+        print(qtable)
 
 learn()
