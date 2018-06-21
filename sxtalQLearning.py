@@ -3,7 +3,7 @@ import os
 from copy import copy
 import numpy as np
 import random as rand
-
+import matplotlib as mpl
 import fswig_hklgen as H
 import hkl_model as Mod
 import sxtal_model as S
@@ -170,34 +170,49 @@ def learn():
 #        for i in range(len(model.observed)):
 #            print(model.reflections[i].hkl , model.observed[i], model.error[i])
 
-if __name__ == "__main__":
+#if __name__ == "__main__":
     # program run normally
-    learn()
-else:
+ #   learn()
+#else:
     # called using bumps
-    cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
+#    cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
 
-    m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
-            [atomList], exclusions,
-            scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
+#    m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
+#            [atomList], exclusions,
+#            scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
 
 #    Set a range on the x value of the first atom in the model
-    m.atomListModel.atomModels[0].z.range(0, 1)
-    m.atomListModel.atomModels[0].z.value = 0.5
+#    m.atomListModel.atomModels[0].z.range(0, 1)
+#    m.atomListModel.atomModels[0].z.value = 0.5
 
-    problem = bumps.FitProblem(m)
+#    problem = bumps.FitProblem(m)
 
 
-#cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
-
-#print(error)
+cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
 
 #Define a model
-#m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
-#        [atomList], exclusions,
-#        scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
+m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
+        [atomList], exclusions,
+        scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
 
-#Set a range on the x value of the first atom in the model
-#m.atomListModel.atomModels[0].z.range(0, 1)
-#m.atomListModel.atomModels[0].z.value = 0.5
-#fit(m)
+z = 0
+xval = []
+y = []
+while (z < 1):
+
+    #Set a range on the x value of the first atom in the model
+    m.atomListModel.atomModels[0].z.value = z
+    m.atomListModel.atomModels[0].z.range(0, 1)
+    problem = bumps.FitProblem(m)
+#    monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
+
+    fitted = fitter.MPFit(problem)
+    x, dx = fitted.solve()
+    xval.append(x)
+    yval.append(y)
+    z += 0.01
+
+mpl.pyplot.plot(x, y)
+mpl.pyplot.xlabel("Pr z coordinate")
+mpl.pyplot.ylabel("X2 value")
+mpl.pyplot.savefig('/storage/aew3/prnio_chisq_vals')
