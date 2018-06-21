@@ -47,31 +47,30 @@ def setInitParams():
                 scale=0.06298, error=[],  extinction=[0.0001054])
 
     #Set a range on the x value of the first atom in the model
-    m.atomListModel.atomModels[0].z.range(0.3,0.4)
+#    m.atomListModel.atomModels[0].z.fixed = False
+#    m.atomListModel.atomModels[0].z.fittable = True
+    m.atomListModel.atomModels[0].z.value = 0.3
+    m.atomListModel.atomModels[0].z.range(0,1)
+#    fit(m)
 
     return m
 
 def fit(model):
 
-    print("Fitting problem...")
-
-    #Crate a problem from the model with bumps,
+    #Create a problem from the model with bumps,
     #then fit and solve it
     problem = bumps.FitProblem(model)
-#    monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
+    monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
 
     fitted = fitter.MPFit(problem)
-   # x, dx = fitted.solve()
-    x, dx = fitted.solve()
+    x, dx = fitted.solve(monitors=[monitor])
     print(problem.getp())
-    print(problem.labels())
-    print(fitted)
     print(x, dx)
     problem.model_update()
     model.update()
 
     print(problem.chisq())
-    return x, dx
+    return x, dx, model
 
 #---------------------------------------
 #Q learning methods
@@ -122,75 +121,33 @@ def learn():
                     if (qtable[refList.index(state), hklIndex] > qValue):
                         qValue = qtable[refList.index(state), hklIndex]
                         action = refList[actionIndex]
+                        break
 
             #No repeats
             remainingRefs.remove(actionIndex)
-
-            print(action.hkl)
             visited.append(action)
 
             #Find the data for this hkl value and add it to the model
-            print("adding ref")
-
-#                        if model.refList is None:
-                            #newList = H.ReflectionList()
-                            #newList.set_reflection_list_nref(0)
-                            #H.funcs.alloc_reflist_array(newList)
             model.refList = H.ReflectionList(visited)
-            print("made reflist")
- #                       else:
-  #                          model.refList.append(reflection)
-
             model._set_reflections()
 
             model.error.append(error[actionIndex])
-#                        model.observed = np.append(model.observed, [sfs2[refsIter.index]])
             model.tt = np.append(model.tt, [tt[actionIndex]])
 
             model.update()
 
             observed.append(sfs2[actionIndex])
             model._set_observations(observed)
-#                        model.reflections.set_reflections_list_nref(model.reflections.nref()+1)
- #                       model.reflections[reflection]
+            model.update()
 
-            model.update()     #may not be necessary
-#                      break
+#            for i in range(len(model.observed)):
+ #               print(model.reflections[i].hkl , model.observed[i], model.error[i])
 
- #               except StopIteration:
-  #                  break
-
-
-
-#            for reflection in refList:        #TODO, should this be adding hkls not refs?
-#                if (reflection.hkl == action.hkl):
-#                    print("adding ref")
-#                    model.reflections.append(reflection)
-#                    model.error.append(error[refList.index(reflection)])
-#                    model.observed.append(sf2s[refList.index(reflection)])
-#                    model.tt.append(tt[refList.index(reflection)])
-#                    model.update()     #may not be necessary
-#                    break
-
-            print "points", model.numpoints()
-
-	    if (step > 0):        #TODO not necessary
-                x, dx = fit(model)
-                print(model.error)
-   	        reward -= 1
+            if step > 0:
+                x, dx, model = fit(model)
+                reward -= 1
                 if (prevDx != None and dx < prevDx):
                     reward += 1
-
-   #             refsIter = refList.__iter__()
-    #            while True:
-     #               try:
-      #                  reflection = refsIter.next()
-       #                 if reflection.hkl == action.hkl:
-        #                    actionIndex = refsIter.index
-         #               if reflection.hkl == state.hkl:
-          #                  stateIndex = refsIter.index
-           #         except StopIteration:
-            #           break
 
                 qtable[stateIndex, actionIndex] =  qtable[stateIndex, actionIndex] + \
                                                    alpha*(reward + gamma*(np.max(qtable[stateIndex,:])) - \
@@ -199,6 +156,8 @@ def learn():
 
             state = action
             stateIndex = actionIndex
+
+#            print(model.nllf())
             print("_______________________")
             if (len(remainingRefs) == 0):
                 break
@@ -208,6 +167,37 @@ def learn():
         if (epsilon < minEps):
            epsilon = minEps
 
-        print(qtable)
+#        for i in range(len(model.observed)):
+#            print(model.reflections[i].hkl , model.observed[i], model.error[i])
 
-learn()
+if __name__ == "__main__":
+    # program run normally
+    learn()
+else:
+    # called using bumps
+    cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
+
+    m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
+            [atomList], exclusions,
+            scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
+
+#    Set a range on the x value of the first atom in the model
+    m.atomListModel.atomModels[0].z.range(0, 1)
+    m.atomListModel.atomModels[0].z.value = 0.5
+
+    problem = bumps.FitProblem(m)
+
+
+#cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
+
+#print(error)
+
+#Define a model
+#m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
+#        [atomList], exclusions,
+#        scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
+
+#Set a range on the x value of the first atom in the model
+#m.atomListModel.atomModels[0].z.range(0, 1)
+#m.atomListModel.atomModels[0].z.value = 0.5
+#fit(m)
