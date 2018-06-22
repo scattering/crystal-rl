@@ -1,8 +1,8 @@
-#Q Learning with Pycrysfml
+# Q Learning with Pycrysfml
 
 This is a simple Q learning algorithm for use with pycrysfml. It trains a model on the data continated in prnio.ctl/prnio.int
 
-##Setup
+## Setup
 
 This code is designed to be run from:
 
