@@ -35,6 +35,7 @@ tt = [H.twoTheta(H.calcS(crystalCell, ref.hkl), wavelength) for ref in refList]
 backg = None
 exclusions = []
 
+@profile
 def setInitParams():
 
     #Make a cell
@@ -51,6 +52,7 @@ def setInitParams():
 
     return m
 
+@profile
 def fit(model):
 
     #Create a problem from the model with bumps,
@@ -63,6 +65,7 @@ def fit(model):
 
     return x, dx, problem.chisq()
 
+@profile
 def learn():
 
     #Q params
@@ -73,7 +76,7 @@ def learn():
     alpha = .01
     gamma = .9
 
-    maxEpisodes = 100
+    maxEpisodes = 10000
     maxSteps = len(refList)
 
     qtable = np.zeros([len(refList)+1, len(refList)])    #qtable(state, action), first index of state is no data
@@ -151,11 +154,11 @@ def learn():
         if (epsilon < minEps):
            epsilon = minEps
 
-        print(x, chisq, totReward, step)
+#        print(x, chisq, totReward, step)
 
         #Write qtable to a file every ten episodes
-        if ((episode % 10) == 0):
-            file = open("qtable.txt", "w")
+        if ((episode % 50) == 0):
+            file = open("/storage/aew3/qtable.txt", "w")
             file.write("episode: " + str(episode))
             for stateList in qtable:
                 file.write(str(stateList[:]))
