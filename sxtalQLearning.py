@@ -3,6 +3,7 @@ import os
 from copy import copy
 import numpy as np
 import random as rand
+import pickle
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
@@ -35,7 +36,7 @@ tt = [H.twoTheta(H.calcS(crystalCell, ref.hkl), wavelength) for ref in refList]
 backg = None
 exclusions = []
 
-@profile
+
 def setInitParams():
 
     #Make a cell
@@ -52,7 +53,7 @@ def setInitParams():
 
     return m
 
-@profile
+
 def fit(model):
 
     #Create a problem from the model with bumps,
@@ -65,7 +66,7 @@ def fit(model):
 
     return x, dx, problem.chisq()
 
-@profile
+
 def learn():
 
     #Q params
@@ -78,6 +79,7 @@ def learn():
 
     maxEpisodes = 10000
     maxSteps = len(refList)
+    rewards = []
 
     qtable = np.zeros([len(refList)+1, len(refList)])    #qtable(state, action), first index of state is no data
 
@@ -154,16 +156,24 @@ def learn():
         if (epsilon < minEps):
            epsilon = minEps
 
-#        print(x, chisq, totReward, step)
-
         #Write qtable to a file every ten episodes
-        if ((episode % 50) == 0):
-            file = open("/storage/aew3/qtable.txt", "w")
-            file.write("episode: " + str(episode))
-            for stateList in qtable:
-                file.write(str(stateList[:]))
+        if ((episode % 25) == 0):
+            rewards.append(totReward)
+            file = open("/mnt/storage/qtable.txt", "w")
+            pickle.dump(qtable, file)
             file.close()
 
+            file = open("/mnt/storage/rewardsLog.txt", "w")
+            file.write("episode: " + str(episode))
+            file.write(str(rewards[:]))
+            file.close
+
+def readQTable():
+
+    file = open("/mnt/storage/qtable-testing.txt", "r")
+    qtable = pickle.load(file)
+    file.close()
+    return qtable
 
 #if __name__ == "__main__":
     # program run normally
