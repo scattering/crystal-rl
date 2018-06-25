@@ -4,6 +4,7 @@ from copy import copy
 import numpy as np
 import random as rand
 import pickle
+import itertools
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
@@ -45,6 +46,10 @@ class PycrysfmlEnvironment(Environment):
 
         #TODO: else, for powder data
 
+        self.state #TODO
+
+
+        reset()
 
     def reset(self):
 
@@ -70,6 +75,9 @@ class PycrysfmlEnvironment(Environment):
 
         self.totReward = 0
         self.stateIndex = 0
+        self.prevChiSq = None
+
+        return self.state
 
     def execute(self, action):
 
@@ -80,45 +88,35 @@ class PycrysfmlEnvironment(Environment):
         self.visited.append(self.actions(action))
 
         #Find the data for this hkl value and add it to the model
-        model.refList = H.ReflectionList(visited)
-        model._set_reflections()
+        self.model.refList = H.ReflectionList(visited)
+        self.model._set_reflections()
 
-        model.error.append(error[actionIndex])
-        model.tt = np.append(model.tt, [tt[actionIndex]])
+        self.model.error.append(self.error[actionIndex])
+        self.model.tt = np.append(self.model.tt, [self.tt[actionIndex]])
 
-        observed.append(sfs2[actionIndex])
-        model._set_observations(observed)
-        model.update()
+        self.observed.append(sfs2[actionIndex])
+        self.model._set_observations(observed)
+        self.model.update()
 
         #Need more data than parameters, have to wait to the second step to fit
-        if step > 0:
-            x, dx, chisq = fit(model)
+        if len(visited) > 0:
 
-            reward -= 1
-            if (prevX2 != None and chisq < prevX2):
+            x, dx, chisq = fit(self.model)
+
+            reward = -1
+            if (self.prevChiSq != None and chisq < prevChiSq):
                 reward += 1.5
 
-            qtable[stateIndex, actionIndex] =  qtable[stateIndex, actionIndex] + \
-                                               alpha*(reward + gamma*(np.max(qtable[stateIndex,:])) - \
-                                               qtable[stateIndex, actionIndex])
-            prevX2 = chisq
+            self.prevChiSq = chisq
 
-
-       #TODO        stateIndex = actionIndex+1  #shifted up one for states, so that the first index is no data
         self.totReward += reward
 
+        if (len(self.remaininRefs) == 0):
+            terminal = True
+        else:
+            terminal = False
 
-
-
-
-        """
-        Executes action, observes next state(s) and reward.
-        Args:
-            actions: Actions to execute.
-        Returns:
-            (Dict of) next state(s), boolean indicating terminal, and reward signal.
-        """
-        raise NotImplementedError
+        return states(), terminal, reward
 
     @property
     def states(self):
