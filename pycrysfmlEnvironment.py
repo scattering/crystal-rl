@@ -1,4 +1,4 @@
-import os,sys;sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))))
+import os,sys;sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 import os
 from copy import copy
 import numpy as np
@@ -27,8 +27,6 @@ class PycrysfmlEnvironment(Environment):
 
     def __init__(self,  observedFile, infoFile, backgFile=None, sxtal=True):
 
-        DATAPATH = os.path.dirname(os.path.abspath(__file__))
-
         if sxtal:
 
             #Read data
@@ -46,7 +44,13 @@ class PycrysfmlEnvironment(Environment):
 
         #TODO: else, for powder data
 
-        self.state #TODO
+        self.state = []
+        for i in range(len(self.actions)):
+     
+            for subset in itertools.combinations(self.actions, i):
+                self.append(subset)
+
+        print(len(self.state))
 
 
         reset()
@@ -148,3 +152,11 @@ class PycrysfmlEnvironment(Environment):
         )
         assert isinstance(env, Environment)
         return env
+
+
+
+
+DATAPATH = os.path.dirname(os.path.abspath(__file__))
+observedFile = os.path.join(DATAPATH,r"prnio.int")
+infoFile = os.path.join(DATAPATH,r"prnio.cfl")
+__init__(observedFile, infoFile)
