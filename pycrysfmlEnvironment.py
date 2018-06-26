@@ -33,7 +33,7 @@ class PycrysfmlEnvironment(Environment):
             self.spaceGroup, self.crystalCell, self.atomList = H.readInfo(infoFile)
 
             # return wavelength, refList, sfs2, error, two-theta, and four-circle parameters
-            wavelength, refList, sfs2, error = S.readIntFile(observedFile, kind="int", cell=crystalCell)
+            wavelength, refList, sfs2, error = S.readIntFile(observedFile, kind="int", cell=self.crystalCell)
             self.wavelength = wavelength
             self.actions = refList
             self.sfs2 = sfs2
@@ -44,14 +44,7 @@ class PycrysfmlEnvironment(Environment):
 
         #TODO: else, for powder data
 
-        self.state = []
-        for i in range(len(self.actions)):
-     
-            for subset in itertools.combinations(self.actions, i):
-                self.append(subset)
-
-        print(len(self.state))
-
+        self.state = np.zeros(len(self.actions))
 
         reset()
 
@@ -78,7 +71,6 @@ class PycrysfmlEnvironment(Environment):
             self.remainingActions.append(i)
 
         self.totReward = 0
-        self.stateIndex = 0
         self.prevChiSq = None
 
         return self.state
@@ -90,6 +82,9 @@ class PycrysfmlEnvironment(Environment):
         #No repeats
         self.remainingRefs.remove(action)
         self.visited.append(self.actions(action))
+
+        #Update state
+        self.state[actionIndex] = 1
 
         #Find the data for this hkl value and add it to the model
         self.model.refList = H.ReflectionList(visited)
@@ -120,15 +115,11 @@ class PycrysfmlEnvironment(Environment):
         else:
             terminal = False
 
-        return states(), terminal, reward
+        return self.state, terminal, reward
 
     @property
     def states(self):
-        """
-        Return the state space. Might include subdicts if multiple states are available simultaneously.
-        Returns: dict of state properties (shape and type).
-        """
-        raise NotImplementedError
+        return dict(shape=(), type='int')
 
     @property
     def actions(self):
@@ -153,10 +144,3 @@ class PycrysfmlEnvironment(Environment):
         assert isinstance(env, Environment)
         return env
 
-
-
-
-DATAPATH = os.path.dirname(os.path.abspath(__file__))
-observedFile = os.path.join(DATAPATH,r"prnio.int")
-infoFile = os.path.join(DATAPATH,r"prnio.cfl")
-__init__(observedFile, infoFile)
