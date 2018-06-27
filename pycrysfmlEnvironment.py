@@ -35,18 +35,17 @@ class PycrysfmlEnvironment(Environment):
             # return wavelength, refList, sfs2, error, two-theta, and four-circle parameters
             wavelength, refList, sfs2, error = S.readIntFile(observedFile, kind="int", cell=self.crystalCell)
             self.wavelength = wavelength
-            self.actions = refList
+            self.refList = refList
             self.sfs2 = sfs2
             self.error = error
-            self.tt = [H.twoTheta(H.calcS(crystalCell, ref.hkl), wavelength) for ref in refList]
+            self.tt = [H.twoTheta(H.calcS(self.crystalCell, ref.hkl), wavelength) for ref in refList]
             self.backg = None
             self.exclusions = []
 
         #TODO: else, for powder data
 
-        self.state = np.zeros(len(self.actions))
-
-        reset()
+        self.state = np.zeros(len(refList))
+        self.reset()
 
     def reset(self):
 
@@ -67,7 +66,7 @@ class PycrysfmlEnvironment(Environment):
         self.visited = []
         self.observed = []
         self.remainingActions = []
-        for i in range(len(self.actions)):
+        for i in range(len(self.refList)):
             self.remainingActions.append(i)
 
         self.totReward = 0
@@ -75,58 +74,81 @@ class PycrysfmlEnvironment(Environment):
 
         return self.state
 
-    def execute(self, action):
+    def fit(self, model):
+
+        #Create a problem from the model with bumps,
+        #then fit and solve it
+        problem = bumps.FitProblem(model)
+        monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
+
+        fitted = fitter.LevenbergMarquardtFit(problem)
+        x, dx = fitted.solve(monitors=[monitor])
+
+        return x, dx, problem.chisq()
+
+    def execute(self, actions):
 
         #TODO check action type, assuming index of action list
 
+        actionIndex = self.remainingActions[actions]
+
+        print(actions)
+#        print(self.refList)
+#        print(type(actions.item()))
+#        print(self.remainingActions)
         #No repeats
-        self.remainingRefs.remove(action)
-        self.visited.append(self.actions(action))
+        self.remainingActions.remove(actionIndex)
+        self.visited.append(self.refList[actionIndex])
 
         #Update state
         self.state[actionIndex] = 1
 
         #Find the data for this hkl value and add it to the model
-        self.model.refList = H.ReflectionList(visited)
+        self.model.refList = H.ReflectionList(self.visited)
         self.model._set_reflections()
 
         self.model.error.append(self.error[actionIndex])
         self.model.tt = np.append(self.model.tt, [self.tt[actionIndex]])
 
-        self.observed.append(sfs2[actionIndex])
-        self.model._set_observations(observed)
+        self.observed.append(self.sfs2[actionIndex])
+        self.model._set_observations(self.observed)
         self.model.update()
 
+        reward = 0
         #Need more data than parameters, have to wait to the second step to fit
-        if len(visited) > 0:
+        if len(self.visited) > 1:
 
-            x, dx, chisq = fit(self.model)
+            x, dx, chisq = self.fit(self.model)
 
-            reward = -1
-            if (self.prevChiSq != None and chisq < prevChiSq):
+            reward -= 1
+            if (self.prevChiSq != None and chisq < self.prevChiSq):
                 reward += 1.5
 
             self.prevChiSq = chisq
 
         self.totReward += reward
 
-        if (len(self.remaininRefs) == 0):
+        if (len(self.remainingActions) == 0):
             terminal = True
         else:
             terminal = False
-
+        print("finished exec")
         return self.state, terminal, reward
 
     @property
     def states(self):
-        return dict(shape=(), type='int')
+        return dict(shape=self.state.shape, type='float')
 
     @property
     def actions(self):
 
         #TODO limit to remaining options (no repeats)
         #TODO set up to have the hkls, so it can be generalized
-        return dict(num_actions=len(self.actions), type='int')
+        return dict(num_actions=len(self.remainingActions), type='int')
+
+    @actions.setter
+    def actions(self, value):
+        self._actions = value
 
 
     #_______________________________________________

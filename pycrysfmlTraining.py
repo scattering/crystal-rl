@@ -15,6 +15,7 @@ from tensorforce import TensorForceError
 from tensorforce.execution import Runner
 from tensorforce.agents import DQNAgent
 from tensorforce.agents import PPOAgent
+from tensorforce.core.preprocessors import Flatten
 
 from pycrysfmlEnvironment import PycrysfmlEnvironment
 
@@ -43,12 +44,24 @@ def main():
 
     #From quickstart on docs
     # Network as list of layers
+    #This is from mlp2_embedding_network.json
     network_spec = [
-        dict(type='dense', size=32, activation='tanh'),
-        dict(type='dense', size=32, activation='tanh')
+        {
+            "type": "dense",
+            "size":  32
+        },
+        {
+            "type": "dense",
+            "size": 32
+        }
     ]
 
-    environment = PycrysfmlEnvironment
+    DATAPATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    observedFile = os.path.join(DATAPATH,r"prnio.int")
+    infoFile = os.path.join(DATAPATH,r"prnio.cfl")
+
+    environment = PycrysfmlEnvironment(observedFile, infoFile)
+
 
     agent = DQNAgent(
             states=environment.states,
@@ -57,6 +70,8 @@ def main():
             #TODO add in other params
         )
 
+
+#    pp_flat = Flatten()
 
     runner = Runner(
         agent=agent,
@@ -80,16 +95,18 @@ def main():
     runner.run(
         timesteps=6000000,
         episodes=1000,
-        max_episode_timesteps=10000,
-        deterministic=False,
+        max_episode_timesteps=200,
+        deterministic=True,
         episode_finished=episode_finished
     )
 
     terminal = False
     state = environment.reset()
+ #   processedState = pp_flat.processed_shape(state)
     while not terminal:
-        action = agent.act(state)
-        state, terminal, reward = environment.execute(action)
+        action = agent.act(processedState)
+        state, terminal, reward = environment.execute(actions=action)
+ #       processedState = pp_flat.process(state)
     environment.print_state()
 
     runner.close()
@@ -99,7 +116,7 @@ def main():
 
 def quickStart():
 
-   DATAPATH = os.path.dirname(os.path.abspath(__file__))
+   DATAPATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
    observedFile = os.path.join(DATAPATH,r"prnio.int")
    infoFile = os.path.join(DATAPATH,r"prnio.cfl")
 
@@ -118,9 +135,9 @@ def quickStart():
        states=env.states,
        actions=env.actions,
        network=network_spec,
-#       batch_size=4096,
+       batch_size=4096,
        # BatchAgent
-#       keep_last_timestep=True,
+       keep_last_timestep=True,
        # PPOAgent
        step_optimizer=dict(
            type='adam',
@@ -131,17 +148,17 @@ def quickStart():
        scope='ppo',
        discount=0.99,
        # DistributionModel
-#       distributions_spec=None,
+       distributions_spec=None,
        entropy_regularization=0.01,
        # PGModel
        baseline_mode=None,
        baseline=None,
        baseline_optimizer=None,
        gae_lambda=None,
-       # PGLRModel
+       #  PGLRModel
        likelihood_ratio_clipping=0.2,
-#       summary_spec=None,
-#       distributed_spec=None
+       summary_spec=None,
+       distributed_spec=None
    )
 
    # Create the runner
@@ -168,5 +185,5 @@ def quickStart():
 
 
 if __name__ == '__main__':
-    quickStart()
+    main()
 
