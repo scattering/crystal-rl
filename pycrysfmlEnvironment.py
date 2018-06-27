@@ -89,32 +89,37 @@ class PycrysfmlEnvironment(Environment):
     def execute(self, actions):
 
         #TODO check action type, assuming index of action list
-
-
-        #Update state
-        self.state[actions] = 1
-
-        if not (actions in self.remainingActions):
-            return self.state, True, -10
-
 #        print(actions)
-#        print(self.actions)
+        print("actions: " + str(actions))
+        actionIndex = self.remainingActions[actions]
+        print("index " + str(actionIndex))
+
+#        if (self.state[actions] == 1):
+ #           return self.state, False, -10
+
+        self.state[actionIndex] = 1
+
+#        if not (actions in self.remainingActions):
+#            return self.state, True, -10
+
+ #       print(actions)
+  #      print(self.actions)
 #        print(type(actions.item()))
-#        print(self.remainingActions)
+   #     print(self.remainingActions)
 
         #No repeats
-        self.remainingActions.remove(actions)
-        self.visited.append(self.refList[actions.item()])
-
+       
+        self.visited.append(self.refList[actionIndex])
+        self.remainingActions.remove(actionIndex)
 
         #Find the data for this hkl value and add it to the model
         self.model.refList = H.ReflectionList(self.visited)
         self.model._set_reflections()
 
-        self.model.error.append(self.error[actions])
-        self.model.tt = np.append(self.model.tt, [self.tt[actions]])
+        self.model.error.append(self.error[actionIndex])
+        self.model.tt = np.append(self.model.tt, [self.tt[actionIndex]])
 
-        self.observed.append(self.sfs2[actions])
+        self.observed.append(self.sfs2[actionIndex])
         self.model._set_observations(self.observed)
         self.model.update()
 
@@ -148,7 +153,7 @@ class PycrysfmlEnvironment(Environment):
 
         #TODO limit to remaining options (no repeats)
         #TODO set up to have the hkls, so it can be generalized
-        return dict(num_actions=len(self.refList), type='int')
+        return dict(num_actions=len(self.remainingActions), names = self.remainingActions, type='int')
 
     @actions.setter
     def actions(self, value):

@@ -14,8 +14,8 @@ import gym
 from tensorforce import TensorForceError
 from tensorforce.execution import Runner
 from tensorforce.agents import DQNAgent
-from tensorforce.agents import PPOAgent
-from tensorforce.core.preprocessors import Flatten
+from tensorforce.agents import Agent
+from tensorforce.core.explorations import EpsilonDecay
 
 from pycrysfmlEnvironment import PycrysfmlEnvironment
 
@@ -56,6 +56,8 @@ def main():
         }
     ]
 
+
+
     DATAPATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     observedFile = os.path.join(DATAPATH,r"prnio.int")
     infoFile = os.path.join(DATAPATH,r"prnio.cfl")
@@ -63,11 +65,29 @@ def main():
     environment = PycrysfmlEnvironment(observedFile, infoFile)
 
 
-    agent = DQNAgent(
-            states=environment.states,
-            actions=environment.actions,
-            network=network_spec,
-            #TODO add in other params
+#    agent = DQNAgent(
+#            states=environment.states,
+#            actions=environment.actions,
+#            network=network_spec,
+#            actions_exploration=EpsilonDecay()
+#            #TODO add in other params
+#        )
+
+
+    if args.agent_config is not None:
+        with open(args.agent_config, 'r') as fp:
+            agent_config = json.load(fp=fp)
+    else:
+        raise TensorForceError("No agent configuration provided.")
+
+
+    agent = Agent.from_spec(
+            spec=agent_config,
+            kwargs=dict(
+                states=environment.states,
+                actions=environment.actions,
+                network=network_spec,
+            )
         )
 
 
@@ -80,7 +100,7 @@ def main():
     )
 
     def episode_finished(r):
-        if r.episode % 100 == 0:
+        if r.episode % 2 == 0:
             sps = r.timestep / (time.time() - r.start_time)
             logger.info("Finished episode {ep} after {ts} timesteps. Steps Per Second {sps}".format(ep=r.episode,
                                                                                                     ts=r.timestep,
@@ -95,7 +115,7 @@ def main():
         timesteps=60000000,
         episodes=10000,
         max_episode_timesteps=1000,
-        deterministic=True,
+        deterministic=False,
         episode_finished=episode_finished
     )
 
