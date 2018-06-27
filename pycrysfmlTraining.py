@@ -87,27 +87,26 @@ def main():
                                                                                                     sps=sps))
             logger.info("Episode reward: {}".format(r.episode_rewards[-1]))
             logger.info("Episode timesteps: {}".format(r.episode_timestep))
-            logger.info("Episode largest tile: {}".format(r.environment.largest_tile))
             logger.info("Average of last 500 rewards: {}".format(sum(r.episode_rewards[-500:]) / 500))
             logger.info("Average of last 100 rewards: {}".format(sum(r.episode_rewards[-100:]) / 100))
         return True
 
     runner.run(
-        timesteps=6000000,
-        episodes=1000,
-        max_episode_timesteps=200,
+        timesteps=60000000,
+        episodes=10000,
+        max_episode_timesteps=1000,
         deterministic=True,
         episode_finished=episode_finished
     )
 
-    terminal = False
-    state = environment.reset()
+#    terminal = False
+ #   state = environment.reset()
  #   processedState = pp_flat.processed_shape(state)
-    while not terminal:
-        action = agent.act(processedState)
-        state, terminal, reward = environment.execute(actions=action)
+#    while not terminal:
+#        action = agent.act(state)
+#        state, terminal, reward = environment.execute(actions=action)
  #       processedState = pp_flat.process(state)
-    environment.print_state()
+#    environment.print_state()
 
     runner.close()
 

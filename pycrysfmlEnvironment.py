@@ -90,27 +90,31 @@ class PycrysfmlEnvironment(Environment):
 
         #TODO check action type, assuming index of action list
 
-        actionIndex = self.remainingActions[actions]
-
-        print(actions)
-#        print(self.refList)
-#        print(type(actions.item()))
-#        print(self.remainingActions)
-        #No repeats
-        self.remainingActions.remove(actionIndex)
-        self.visited.append(self.refList[actionIndex])
 
         #Update state
-        self.state[actionIndex] = 1
+        self.state[actions] = 1
+
+        if not (actions in self.remainingActions):
+            return self.state, True, -10
+
+#        print(actions)
+#        print(self.actions)
+#        print(type(actions.item()))
+#        print(self.remainingActions)
+
+        #No repeats
+        self.remainingActions.remove(actions)
+        self.visited.append(self.refList[actions.item()])
+
 
         #Find the data for this hkl value and add it to the model
         self.model.refList = H.ReflectionList(self.visited)
         self.model._set_reflections()
 
-        self.model.error.append(self.error[actionIndex])
-        self.model.tt = np.append(self.model.tt, [self.tt[actionIndex]])
+        self.model.error.append(self.error[actions])
+        self.model.tt = np.append(self.model.tt, [self.tt[actions]])
 
-        self.observed.append(self.sfs2[actionIndex])
+        self.observed.append(self.sfs2[actions])
         self.model._set_observations(self.observed)
         self.model.update()
 
@@ -132,7 +136,7 @@ class PycrysfmlEnvironment(Environment):
             terminal = True
         else:
             terminal = False
-        print("finished exec")
+ #       print("finished exec")
         return self.state, terminal, reward
 
     @property
@@ -144,7 +148,7 @@ class PycrysfmlEnvironment(Environment):
 
         #TODO limit to remaining options (no repeats)
         #TODO set up to have the hkls, so it can be generalized
-        return dict(num_actions=len(self.remainingActions), type='int')
+        return dict(num_actions=len(self.refList), type='int')
 
     @actions.setter
     def actions(self, value):
