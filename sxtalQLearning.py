@@ -36,6 +36,7 @@ tt = [H.twoTheta(H.calcS(crystalCell, ref.hkl), wavelength) for ref in refList]
 backg = None
 exclusions = []
 
+qtable = []
 
 def setInitParams():
 
@@ -70,18 +71,18 @@ def fit(model):
 def learn():
 
     #Q params
-    epsilon = 1
+    epsilon = 0
     minEps = 0.01
     epsDecriment = 0.95
 
     alpha = .01
     gamma = .9
 
-    maxEpisodes = 10000
+    maxEpisodes = 5
     maxSteps = len(refList)
     rewards = []
 
-    qtable = np.zeros([len(refList)+1, len(refList)])    #qtable(state, action), first index of state is no data
+ #   qtable = np.zeros([len(refList)+1, len(refList)])    #qtable(state, action), first index of state is no data
 
     for episode in range(maxEpisodes):
 
@@ -96,6 +97,9 @@ def learn():
         observed = []
         totReward = 0
         stateIndex = 0
+
+        file = open("/mnt/storage/agentPath_trained_" + str(episode) +".txt", 'w') 
+        file.write("HKL value\tReward\tTotal Reward\tChi Squared Value\n")
 
         for step in range(maxSteps):
 
@@ -131,6 +135,7 @@ def learn():
             model._set_observations(observed)
             model.update()
 
+            chisq = 0
             #Need more data than parameters, have to wait to the second step to fit
             if step > 0:
                 x, dx, chisq = fit(model)
@@ -144,33 +149,40 @@ def learn():
                                                    qtable[stateIndex, actionIndex])
                 prevX2 = chisq
 
+                #print (str(action.hkl) + ":\t" +str(chisq) + "\t" + str(totReward)+ "\n")
+
             state = action
             stateIndex = actionIndex+1  #shifted up one for states, so that the first index is no data
             totReward += reward
+            hkl = str(action.hkl[0]) + " " + str(action.hkl[1]) + " " + str(action.hkl[2])
+            file.write(hkl + "\t" +str(reward) + "\t" + str(totReward)+ "\t" + str(chisq) + "\n")
 
-            if (prevX2 != None and step > 50 and  chisq < 49):    #stop early if the fit is within certian bounds (i.e, "good enough")
-                break
+            #if (prevX2 != None and step > 50 and  chisq < 49):    #stop early if the fit is within certian bounds (i.e, "good enough")
+            #    break
+
+        file.close()
 
         #Decriment epsilon to exploit more as the model learns
-        epsilon = epsilon*epsDecriment
-        if (epsilon < minEps):
-           epsilon = minEps
+      #  epsilon = epsilon*epsDecriment
+      #  if (epsilon < minEps):
+      #     epsilon = minEps
+
 
         #Write qtable to a file every ten episodes
-        if ((episode % 25) == 0):
-            rewards.append(totReward)
-            file = open("/mnt/storage/qtable.txt", "w")
-            pickle.dump(qtable, file)
-            file.close()
+#        if ((episode % 25) == 0):
+#            rewards.append(totReward)
+#            file = open("/mnt/storage/qtable.txt", "w")
+#            pickle.dump(qtable, file)
+#            file.close()
 
-            file = open("/mnt/storage/rewardsLog.txt", "w")
-            file.write("episode: " + str(episode))
-            file.write(str(rewards[:]))
-            file.close
+#            file = open("/mnt/storage/rewardsLog.txt", "w")
+#            file.write("episode: " + str(episode))
+#            file.write(str(rewards[:]))
+#            file.close
 
 def readQTable():
 
-    file = open("/mnt/storage/qtable-testing.txt", "r")
+    file = open("/mnt/storage/qtable.txt", "r")
     qtable = pickle.load(file)
     file.close()
     return qtable
@@ -193,6 +205,7 @@ def readQTable():
 #    problem = bumps.FitProblem(m)
 
 
+qtable = readQTable()
 learn()
 
 
