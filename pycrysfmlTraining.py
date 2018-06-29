@@ -10,6 +10,7 @@ import time
 import logging
 import json
 import gym
+import plotly
 
 from tensorforce import TensorForceError
 from tensorforce.execution import Runner
@@ -48,15 +49,15 @@ def main():
     network_spec = [
         {
             "type": "dense",
-            "size":  32
+            "size":  32,
+            "activation": "relu"
         },
         {
             "type": "dense",
-            "size": 32
+            "size": 32,
+            "activation": "relu"
         }
     ]
-
-
 
     DATAPATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     observedFile = os.path.join(DATAPATH,r"prnio.int")
@@ -80,7 +81,6 @@ def main():
     else:
         raise TensorForceError("No agent configuration provided.")
 
-
     agent = Agent.from_spec(
             spec=agent_config,
             kwargs=dict(
@@ -100,7 +100,7 @@ def main():
     )
 
     def episode_finished(r):
-        if r.episode % 2 == 0:
+        if r.episode % 10 == 0:
             sps = r.timestep / (time.time() - r.start_time)
             logger.info("Finished episode {ep} after {ts} timesteps. Steps Per Second {sps}".format(ep=r.episode,
                                                                                                     ts=r.timestep,

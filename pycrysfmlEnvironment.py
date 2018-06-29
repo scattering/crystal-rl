@@ -93,10 +93,6 @@ class PycrysfmlEnvironment(Environment):
 
         self.step += 1
 #        print(self.step, len(self.remainingActions))
-        if ((len(self.remainingActions) == 0) or (self.step > 200)):
-            return self.state, True, 0
-        else:
-            terminal = False
 
 
         #TODO check action type, assuming index of action list
@@ -110,7 +106,7 @@ class PycrysfmlEnvironment(Environment):
 
 
         if self.state[actions] == 1:
-            return self.state, False, -1
+            return self.state, (self.step > 200), -1  #stop only if step > 200
         else:
             self.state[actions] = 1
 
@@ -119,7 +115,7 @@ class PycrysfmlEnvironment(Environment):
 #        print(type(actions.item()))
    #     print(self.remainingActions)
 
-        print (self.refList[actions.item()].hkl)
+#        print (self.refList[actions.item()].hkl)
         #No repeats
         self.visited.append(self.refList[actions.item()])
         self.remainingActions.remove(actions.item())
@@ -147,6 +143,13 @@ class PycrysfmlEnvironment(Environment):
             self.prevChiSq = chisq
 
         self.totReward += reward
+
+        if (self.prevChiSq != None and self.step > 50 and chisq < 49):
+            return self.state, True, 5
+        elif (len(self.remainingActions) == 0 or step > 200):
+            terminal = True
+        else:
+            terminal = False
 
  #       print("finished exec")
         return self.state, terminal, reward
