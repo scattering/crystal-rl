@@ -71,6 +71,9 @@ class PycrysfmlEnvironment(Environment):
 
         self.totReward = 0
         self.prevChiSq = None
+        self.step = 0
+
+        self.state = np.zeros(len(self.refList))
 
         return self.state
 
@@ -88,59 +91,63 @@ class PycrysfmlEnvironment(Environment):
 
     def execute(self, actions):
 
+        self.step += 1
+#        print(self.step, len(self.remainingActions))
+        if ((len(self.remainingActions) == 0) or (self.step > 200)):
+            return self.state, True, 0
+        else:
+            terminal = False
+
+
         #TODO check action type, assuming index of action list
 #        print(actions)
-        print("actions: " + str(actions))
-        actionIndex = self.remainingActions[actions]
-        print("index " + str(actionIndex))
+#        print("actions: " + str(actions))
+#        actionIndex = self.remainingActions[actions]
+#        print("index " + str(actionIndex))
 
 #        if (self.state[actions] == 1):
  #           return self.state, False, -10
 
-        self.state[actionIndex] = 1
 
-#        if not (actions in self.remainingActions):
-#            return self.state, True, -10
+        if self.state[actions] == 1:
+            return self.state, False, -1
+        else:
+            self.state[actions] = 1
 
- #       print(actions)
+#        print(actions)
   #      print(self.actions)
 #        print(type(actions.item()))
    #     print(self.remainingActions)
 
+        print (self.refList[actions.item()].hkl)
         #No repeats
-       
-        self.visited.append(self.refList[actionIndex])
-        self.remainingActions.remove(actionIndex)
+        self.visited.append(self.refList[actions.item()])
+        self.remainingActions.remove(actions.item())
 
         #Find the data for this hkl value and add it to the model
         self.model.refList = H.ReflectionList(self.visited)
         self.model._set_reflections()
 
-        self.model.error.append(self.error[actionIndex])
-        self.model.tt = np.append(self.model.tt, [self.tt[actionIndex]])
+        self.model.error.append(self.error[actions])
+        self.model.tt = np.append(self.model.tt, [self.tt[actions]])
 
-        self.observed.append(self.sfs2[actionIndex])
+        self.observed.append(self.sfs2[actions])
         self.model._set_observations(self.observed)
         self.model.update()
 
-        reward = 0
+        reward = -1
         #Need more data than parameters, have to wait to the second step to fit
         if len(self.visited) > 1:
 
             x, dx, chisq = self.fit(self.model)
 
-            reward -= 1
             if (self.prevChiSq != None and chisq < self.prevChiSq):
-                reward += 1.5
+                reward += 2
 
             self.prevChiSq = chisq
 
         self.totReward += reward
 
-        if (len(self.remainingActions) == 0):
-            terminal = True
-        else:
-            terminal = False
  #       print("finished exec")
         return self.state, terminal, reward
 
@@ -153,11 +160,11 @@ class PycrysfmlEnvironment(Environment):
 
         #TODO limit to remaining options (no repeats)
         #TODO set up to have the hkls, so it can be generalized
-        return dict(num_actions=len(self.remainingActions), names = self.remainingActions, type='int')
+        return dict(num_actions=len(self.refList), type='int')
 
-    @actions.setter
-    def actions(self, value):
-        self._actions = value
+#    @actions.setter
+#    def actions(self, value):
+#        self._actions = value
 
 
     #_______________________________________________
