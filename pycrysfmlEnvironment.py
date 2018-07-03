@@ -8,6 +8,7 @@ import itertools
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.axes as axes
 
 import fswig_hklgen as H
 import hkl_model as Mod
@@ -44,7 +45,6 @@ class PycrysfmlEnvironment(Environment):
 
         #TODO: else, for powder data
 
-        self.state = np.zeros(len(refList))
         self.reset()
 
     def reset(self):
@@ -74,6 +74,7 @@ class PycrysfmlEnvironment(Environment):
         self.step = 0
 
         self.state = np.zeros(len(self.refList))
+        self.stateList = []
 
         return self.state
 
@@ -82,10 +83,13 @@ class PycrysfmlEnvironment(Environment):
         #Create a problem from the model with bumps,
         #then fit and solve it
         problem = bumps.FitProblem(model)
-        monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
-
+#        monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
+        print(problem.summarize())
+        print(problem.residuals())
         fitted = fitter.LevenbergMarquardtFit(problem)
-        x, dx = fitted.solve(monitors=[monitor])
+        x, dx = fitted.solve()
+
+        print("returning: " + str(x) + "\t" +  str(dx) )
 
         return x, dx, problem.chisq()
 
@@ -103,12 +107,14 @@ class PycrysfmlEnvironment(Environment):
 
 #        if (self.state[actions] == 1):
  #           return self.state, False, -10
-
+        print("______________________")
+        print(actions)
 
         if self.state[actions] == 1:
             return self.state, (self.step > 200), -1  #stop only if step > 200
         else:
             self.state[actions] = 1
+
 
 #        print(actions)
   #      print(self.actions)
@@ -134,22 +140,48 @@ class PycrysfmlEnvironment(Environment):
         reward = -1
         #Need more data than parameters, have to wait to the second step to fit
         if len(self.visited) > 1:
+            print(np.where(self.state==1))
+            print("model dets")
+            print(self.model.atomListModel.atomModels[0].x.value)
+            print(self.model.atomListModel.atomModels[0].y.value)
+            print(self.model.atomListModel.atomModels[0].z.value)
 
             x, dx, chisq = self.fit(self.model)
 
+            print(x, dx)
+
             if (self.prevChiSq != None and chisq < self.prevChiSq):
                 reward += 2
+                print(x, dx, chisq)
+
+#                indicies = np.where(self.state==1)
+
+#                file = open("deepQ_fit_data.txt","a")
+#                file.write(str(indicies)+"\n")
+#                file.write(str(x[0])+"\t")
+#                file.write(str(dx)+"\t")
+#                file.write(str(chisq)+"\n")
+#                file.close()
+
+#                self.state[self.step] = chisq
 
             self.prevChiSq = chisq
 
         self.totReward += reward
 
+
         if (self.prevChiSq != None and self.step > 50 and chisq < 49):
             return self.state, True, 5
-        elif (len(self.remainingActions) == 0 or step > 200):
+        elif (len(self.remainingActions) == 0 or self.step > 200):
             terminal = True
         else:
             terminal = False
+
+
+#        self.stateList.append(self.state.copy())
+#        fig = mpl.pyplot.pcolor(self.stateList, cmap="RdBu" )
+#        mpl.pyplot.savefig("state_space.png")
+
 
  #       print("finished exec")
         return self.state, terminal, reward

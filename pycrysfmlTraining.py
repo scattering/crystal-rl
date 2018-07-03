@@ -113,7 +113,7 @@ def main():
 
     runner.run(
         timesteps=60000000,
-        episodes=10000,
+        episodes=1,
         max_episode_timesteps=1000,
         deterministic=False,
         episode_finished=episode_finished
