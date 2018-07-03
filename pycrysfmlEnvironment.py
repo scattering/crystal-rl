@@ -8,6 +8,7 @@ import itertools
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.axes as axes
 
 import fswig_hklgen as H
 import hkl_model as Mod
@@ -33,27 +34,18 @@ class PycrysfmlEnvironment(Environment):
             self.spaceGroup, self.crystalCell, self.atomList = H.readInfo(infoFile)
 
             # return wavelength, refList, sfs2, error, two-theta, and four-circle parameters
-            wavelength, refList, sfs2, error = S.readIntFile(observedFile, kind="int", cell=crystalCell)
+            wavelength, refList, sfs2, error = S.readIntFile(observedFile, kind="int", cell=self.crystalCell)
             self.wavelength = wavelength
-            self.actions = refList
+            self.refList = refList
             self.sfs2 = sfs2
             self.error = error
-            self.tt = [H.twoTheta(H.calcS(crystalCell, ref.hkl), wavelength) for ref in refList]
+            self.tt = [H.twoTheta(H.calcS(self.crystalCell, ref.hkl), wavelength) for ref in refList]
             self.backg = None
             self.exclusions = []
 
         #TODO: else, for powder data
 
-        self.state = []
-        for i in range(len(self.actions)):
-     
-            for subset in itertools.combinations(self.actions, i):
-                self.append(subset)
-
-        print(len(self.state))
-
-
-        reset()
+        self.reset()
 
     def reset(self):
 
@@ -74,68 +66,140 @@ class PycrysfmlEnvironment(Environment):
         self.visited = []
         self.observed = []
         self.remainingActions = []
-        for i in range(len(self.actions)):
+        for i in range(len(self.refList)):
             self.remainingActions.append(i)
 
         self.totReward = 0
-        self.stateIndex = 0
         self.prevChiSq = None
+        self.step = 0
+
+        self.state = np.zeros(len(self.refList))
+        self.stateList = []
 
         return self.state
 
-    def execute(self, action):
+    def fit(self, model):
+
+        #Create a problem from the model with bumps,
+        #then fit and solve it
+        problem = bumps.FitProblem(model)
+#        monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
+        print(problem.summarize())
+        print(problem.residuals())
+        fitted = fitter.LevenbergMarquardtFit(problem)
+        x, dx = fitted.solve()
+
+        print("returning: " + str(x) + "\t" +  str(dx) )
+
+        return x, dx, problem.chisq()
+
+    def execute(self, actions):
+
+        self.step += 1
+#        print(self.step, len(self.remainingActions))
+
 
         #TODO check action type, assuming index of action list
+#        print(actions)
+#        print("actions: " + str(actions))
+#        actionIndex = self.remainingActions[actions]
+#        print("index " + str(actionIndex))
 
+#        if (self.state[actions] == 1):
+ #           return self.state, False, -10
+        print("______________________")
+        print(actions)
+
+        if self.state[actions] == 1:
+            return self.state, (self.step > 200), -1  #stop only if step > 200
+        else:
+            self.state[actions] = 1
+
+
+#        print(actions)
+  #      print(self.actions)
+#        print(type(actions.item()))
+   #     print(self.remainingActions)
+
+#        print (self.refList[actions.item()].hkl)
         #No repeats
-        self.remainingRefs.remove(action)
-        self.visited.append(self.actions(action))
+        self.visited.append(self.refList[actions.item()])
+        self.remainingActions.remove(actions.item())
 
         #Find the data for this hkl value and add it to the model
-        self.model.refList = H.ReflectionList(visited)
+        self.model.refList = H.ReflectionList(self.visited)
         self.model._set_reflections()
 
-        self.model.error.append(self.error[actionIndex])
-        self.model.tt = np.append(self.model.tt, [self.tt[actionIndex]])
+        self.model.error.append(self.error[actions])
+        self.model.tt = np.append(self.model.tt, [self.tt[actions]])
 
-        self.observed.append(sfs2[actionIndex])
-        self.model._set_observations(observed)
+        self.observed.append(self.sfs2[actions])
+        self.model._set_observations(self.observed)
         self.model.update()
 
+        reward = -1
         #Need more data than parameters, have to wait to the second step to fit
-        if len(visited) > 0:
+        if len(self.visited) > 1:
+            print(np.where(self.state==1))
+            print("model dets")
+            print(self.model.atomListModel.atomModels[0].x.value)
+            print(self.model.atomListModel.atomModels[0].y.value)
+            print(self.model.atomListModel.atomModels[0].z.value)
 
-            x, dx, chisq = fit(self.model)
+            x, dx, chisq = self.fit(self.model)
 
-            reward = -1
-            if (self.prevChiSq != None and chisq < prevChiSq):
-                reward += 1.5
+            print(x, dx)
+
+            if (self.prevChiSq != None and chisq < self.prevChiSq):
+                reward += 2
+                print(x, dx, chisq)
+
+#                indicies = np.where(self.state==1)
+
+#                file = open("deepQ_fit_data.txt","a")
+#                file.write(str(indicies)+"\n")
+#                file.write(str(x[0])+"\t")
+#                file.write(str(dx)+"\t")
+#                file.write(str(chisq)+"\n")
+#                file.close()
+
+#                self.state[self.step] = chisq
 
             self.prevChiSq = chisq
 
         self.totReward += reward
 
-        if (len(self.remaininRefs) == 0):
+
+        if (self.prevChiSq != None and self.step > 50 and chisq < 49):
+            return self.state, True, 5
+        elif (len(self.remainingActions) == 0 or self.step > 200):
             terminal = True
         else:
             terminal = False
 
-        return states(), terminal, reward
+
+#        self.stateList.append(self.state.copy())
+#        fig = mpl.pyplot.pcolor(self.stateList, cmap="RdBu" )
+#        mpl.pyplot.savefig("state_space.png")
+
+
+ #       print("finished exec")
+        return self.state, terminal, reward
 
     @property
     def states(self):
-        """
-        Return the state space. Might include subdicts if multiple states are available simultaneously.
-        Returns: dict of state properties (shape and type).
-        """
-        raise NotImplementedError
+        return dict(shape=self.state.shape, type='float')
 
     @property
     def actions(self):
 
         #TODO limit to remaining options (no repeats)
         #TODO set up to have the hkls, so it can be generalized
-        return dict(num_actions=len(self.actions), type='int')
+        return dict(num_actions=len(self.refList), type='int')
+
+#    @actions.setter
+#    def actions(self, value):
+#        self._actions = value
 
 
     #_______________________________________________
@@ -153,10 +217,3 @@ class PycrysfmlEnvironment(Environment):
         assert isinstance(env, Environment)
         return env
 
-
-
-
-DATAPATH = os.path.dirname(os.path.abspath(__file__))
-observedFile = os.path.join(DATAPATH,r"prnio.int")
-infoFile = os.path.join(DATAPATH,r"prnio.cfl")
-__init__(observedFile, infoFile)
