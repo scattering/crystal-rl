@@ -26,7 +26,7 @@ np.seterr(divide="ignore",invalid="ignore")
 DATAPATH = os.path.dirname(os.path.abspath(__file__))
 backgFile = None
 observedFile = os.path.join(DATAPATH,r"../prnio.int")
-infoFile = os.path.join(DATAPATH,r"../prnio.cfl")
+infoFile = os.path.join(DATAPATH,r"../prnio_optimized.cfl")
 
 #Read data
 spaceGroup, crystalCell, atomList = H.readInfo(infoFile)
@@ -187,6 +187,33 @@ def readQTable():
     file.close()
     return qtable
 
+
+
+#model = setInitParams()
+#model.atomListModel.atomModels[0].z.value = 0.280903767178
+#visited = []
+#observed = []
+
+#visited = [refList[0], refList[25], refList[82], refList[140]]
+#indexs = [0, 25, 82, 140]
+
+#for actionIndex in indexs:
+            #Find the data for this hkl value and add it to the model
+#            model.refList = H.ReflectionList(visited)
+#            model._set_reflections()
+
+#            model.error.append(error[actionIndex])
+#            model.tt = np.append(model.tt, [tt[actionIndex]])
+
+#            observed.append(sfs2[actionIndex])
+#            model._set_observations(observed)
+#            model.update()
+
+#x, dx, chisq = fit(model)
+#print(x, dx, chisq)
+
+
+
 #if __name__ == "__main__":
     # program run normally
  #   learn()
@@ -205,39 +232,86 @@ def readQTable():
 #    problem = bumps.FitProblem(m)
 
 
-qtable = readQTable()
-learn()
+#qtable = readQTable()
+#learn()
 
 
 #Graph the chi squared values at different values of the aprameter (Pr: z) and write it to a file
 def printChi2():
 
 	cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
+#        cell.a.pm(0.5)
+#        cell.b.pm(0.5)
+#        cell.c.pm(0.5)
 
 	#Define a model
 	m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
         	[atomList], exclusions,
         	scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
 
-	z = 0
-	xval = []
-	y = []
-	while (z < 1):
+#        m.u.range(0,2)
+#        m.zero.pm(0.1)
+#        m.v.range(-2,0)
+#        m.w.range(0,2)
+#        m.eta.range(0,1)
+#        m.scale.range(0,10)
+#        m.base.pm(250)
 
-	    	#Set a range on the x value of the first atom in the model
-    		m.atomListModel.atomModels[0].z.value = z
-    		m.atomListModel.atomModels[0].z.range(0, 1)
-    		problem = bumps.FitProblem(m)
+#        for atomModel in m.atomListModel.atomModels:
+#            atomModel.x.pm(0.1)
+#            atomModel.z.pm(0.1)
+#            if (atomModel.atom.multip == atomModel.sgmultip):
+#                # atom lies on a general position
+#                atomModel.x.pm(0.1)
+#                atomModel.y.pm(0.1)
+#                atomModel.z.pm(0.1)
+
+	m.atomListModel.atomModels[0].z.value = 0.3
+	m.atomListModel.atomModels[0].z.range(0,0.5)
+    	problem = bumps.FitProblem(m)
 		#    monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
 
-    	fitted = fitter.MPFit(problem)
-    	x, dx = fitted.solve()
-    	xval.append(x[0])
-    	y.append(problem.chisq())
-    	z += 0.005
+        fitted = fitter.SimplexFit(problem)
+    	x, dx = fitted.solve(steps=50)
+        problem.model_update()
+        print(problem.summarize())
+        print(x, dx, problem.chisq())
 
-	fig = plt.figure()
-	mpl.pyplot.plot(xval, y)
-	mpl.pyplot.xlabel("Pr z coordinate")
-	mpl.pyplot.ylabel("X2 value")
-	fig.savefig('/mnt/storage/prnio_chisq_vals.png')
+
+#        x = sfs2
+#        y = m.theory()
+#        y = H.calcStructFact(refList, atomList, spaceGroup, wavelength, xtal=True)
+
+#        for i in range(len(y)):
+ #             y[i] = y[i] * 0.06298
+
+#        plt.scatter(x, y)
+#        plt.savefig('sfs2s.png')
+
+
+#	z = 0
+#	xval = []
+#	y = []
+#	while (z < 1):
+
+	    	#Set a range on the x value of the first atom in the model
+#    		m.atomListModel.atomModels[0].z.value = z
+#    		m.atomListModel.atomModels[0].z.range(0, 1)
+#    		problem = bumps.FitProblem(m)
+	#    monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
+
+#    		y.append(problem.chisq())
+
+#        	fitted = fitter.LevenbergMarquardtFit(problem)
+ #   		x, dx = fitted.solve(steps=50)
+#    		xval.append(z)
+#    		z += 0.005
+#        	print(x,dx,problem.chisq())
+#	fig = plt.figure()#
+#	mpl.pyplot.scatter(xval, y)
+#	mpl.pyplot.xlabel("Pr z coordinate")
+#	mpl.pyplot.ylabel("X2 value")
+#	fig.savefig('/mnt/storage/prnio_chisq_vals_optzd.png')
+
+
+printChi2()
