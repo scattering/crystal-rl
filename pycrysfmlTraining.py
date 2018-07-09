@@ -10,6 +10,7 @@ import time
 import logging
 import json
 import gym
+import plotly
 
 from tensorforce import TensorForceError
 from tensorforce.execution import Runner
@@ -56,8 +57,6 @@ def main():
         }
     ]
 
-
-
     DATAPATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     observedFile = os.path.join(DATAPATH,r"prnio.int")
     infoFile = os.path.join(DATAPATH,r"prnio.cfl")
@@ -80,7 +79,6 @@ def main():
     else:
         raise TensorForceError("No agent configuration provided.")
 
-
     agent = Agent.from_spec(
             spec=agent_config,
             kwargs=dict(
@@ -100,15 +98,17 @@ def main():
     )
 
     def episode_finished(r):
-        if r.episode % 2 == 0:
+        if r.episode % 50 == 0:
             sps = r.timestep / (time.time() - r.start_time)
-            logger.info("Finished episode {ep} after {ts} timesteps. Steps Per Second {sps}".format(ep=r.episode,
+            file = open("/mnt/storage/trainingLog.txt", "a")
+            file.write("Finished episode {ep} after {ts} timesteps. Steps Per Second {sps}".format(ep=r.episode,
                                                                                                     ts=r.timestep,
                                                                                                     sps=sps))
-            logger.info("Episode reward: {}".format(r.episode_rewards[-1]))
-            logger.info("Episode timesteps: {}".format(r.episode_timestep))
-            logger.info("Average of last 500 rewards: {}".format(sum(r.episode_rewards[-500:]) / 500))
-            logger.info("Average of last 100 rewards: {}".format(sum(r.episode_rewards[-100:]) / 100))
+            file.write("Episode reward: {}".format(r.episode_rewards[-1]))
+            file.write("Episode timesteps: {}".format(r.episode_timestep))
+            file.write("Average of last 500 rewards: {}".format(sum(r.episode_rewards[-500:]) / 500))
+            file.write("Average of last 100 rewards: {}".format(sum(r.episode_rewards[-100:]) / 100))
+        agent.save_model("/mnt/storage/", append_timestep=False)
         return True
 
     runner.run(

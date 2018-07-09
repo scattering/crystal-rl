@@ -82,10 +82,8 @@ class PycrysfmlEnvironment(Environment):
         #Create a problem from the model with bumps,
         #then fit and solve it
         problem = bumps.FitProblem(model)
-        monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
-
         fitted = fitter.LevenbergMarquardtFit(problem)
-        x, dx = fitted.solve(monitors=[monitor])
+        x, dx = fitted.solve()
 
         return x, dx, problem.chisq()
 
@@ -94,7 +92,7 @@ class PycrysfmlEnvironment(Environment):
         self.step += 1
 #        print(self.step, len(self.remainingActions))
         if ((len(self.remainingActions) == 0) or (self.step > 200)):
-            return self.state, True, 0
+            return self.state, True, -1
         else:
             terminal = False
 
@@ -119,7 +117,7 @@ class PycrysfmlEnvironment(Environment):
 #        print(type(actions.item()))
    #     print(self.remainingActions)
 
-        print (self.refList[actions.item()].hkl)
+#        print (self.refList[actions.item()].hkl)
         #No repeats
         self.visited.append(self.refList[actions.item()])
         self.remainingActions.remove(actions.item())
