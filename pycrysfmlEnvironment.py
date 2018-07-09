@@ -61,6 +61,16 @@ class PycrysfmlEnvironment(Environment):
         #Set a range on the x value of the first atom in the model
         self.model.atomListModel.atomModels[0].z.value = 0.3
         self.model.atomListModel.atomModels[0].z.range(0,0.5)
+        self.model.atomListModel.atomModels[0].B.range(0, 5)
+        self.model.atomListModel.atomModels[1].B.range(0,5)
+        self.model.atomListModel.atomModels[2].B.range(0,5)
+        self.model.atomListModel.atomModels[3].z.range(0,0.5)
+        self.model.atomListModel.atomModels[3].B.range(0,5)
+        self.model.atomListModel.atomModels[4].B.range(0,5)
+        self.model.atomListModel.atomModels[5].x.range(0,0.5)
+        self.model.atomListModel.atomModels[5].y.range(0,0.5)
+        self.model.atomListModel.atomModels[5].z.range(0,0.5)
+        self.model.atomListModel.atomModels[5].B.range(0,5)
 
         #TODO: clean up excess vars
         self.visited = []
@@ -107,8 +117,8 @@ class PycrysfmlEnvironment(Environment):
 
 #        if (self.state[actions] == 1):
  #           return self.state, False, -10
-        print("______________________")
-        print(actions)
+#        print("______________________")
+#        print(actions)
 
         if self.state[actions] == 1:
             return self.state, (self.step > 200), -1  #stop only if step > 200
@@ -139,20 +149,20 @@ class PycrysfmlEnvironment(Environment):
 
         reward = -1
         #Need more data than parameters, have to wait to the second step to fit
-        if len(self.visited) > 1:
-            print(np.where(self.state==1))
-            print("model dets")
-            print(self.model.atomListModel.atomModels[0].x.value)
-            print(self.model.atomListModel.atomModels[0].y.value)
-            print(self.model.atomListModel.atomModels[0].z.value)
+        if len(self.visited) > 11:
+#            print(np.where(self.state==1))
+#            print("model dets")
+#            print(self.model.atomListModel.atomModels[0].x.value)
+#            print(self.model.atomListModel.atomModels[0].y.value)
+#            print(self.model.atomListModel.atomModels[0].z.value)
 
             x, dx, chisq = self.fit(self.model)
 
-            print(x, dx)
+#            print(x, dx)
 
             if (self.prevChiSq != None and chisq < self.prevChiSq):
                 reward += 2
-                print(x, dx, chisq)
+#                print(x, dx, chisq)
 
 #                indicies = np.where(self.state==1)
 
