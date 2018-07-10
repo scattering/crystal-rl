@@ -16,6 +16,7 @@ import sxtal_model as S
 
 import  bumps.names  as bumps
 import bumps.fitters as fitter
+import bumps.lsqerror as lsqerr
 from bumps.formatnum import format_uncertainty_pm
 
 from tensorforce.environments import Environment
@@ -61,6 +62,16 @@ class PycrysfmlEnvironment(Environment):
         #Set a range on the x value of the first atom in the model
         self.model.atomListModel.atomModels[0].z.value = 0.3
         self.model.atomListModel.atomModels[0].z.range(0,0.5)
+#        self.model.atomListModel.atomModels[0].B.range(0, 5)
+#        self.model.atomListModel.atomModels[1].B.range(0,5)
+#        self.model.atomListModel.atomModels[2].B.range(0,5)
+#        self.model.atomListModel.atomModels[3].z.range(0,0.5)
+#        self.model.atomListModel.atomModels[3].B.range(0,5)
+#        self.model.atomListModel.atomModels[4].B.range(0,5)
+#        self.model.atomListModel.atomModels[5].x.range(0,0.5)
+#        self.model.atomListModel.atomModels[5].y.range(0,0.5)
+#        self.model.atomListModel.atomModels[5].z.range(0,0.5)
+#        self.model.atomListModel.atomModels[5].B.range(0,5)
 
         #TODO: clean up excess vars
         self.visited = []
@@ -70,7 +81,7 @@ class PycrysfmlEnvironment(Environment):
             self.remainingActions.append(i)
 
         self.totReward = 0
-        self.prevChiSq = None
+        self.prevStderr = None
         self.step = 0
 
         self.state = np.zeros(len(self.refList))
@@ -83,20 +94,24 @@ class PycrysfmlEnvironment(Environment):
         #Create a problem from the model with bumps,
         #then fit and solve it
         problem = bumps.FitProblem(model)
-#        monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
-        print(problem.summarize())
-        print(problem.residuals())
+#        print("before: ", lsqerr.stderr(problem.cov()))
         fitted = fitter.LevenbergMarquardtFit(problem)
         x, dx = fitted.solve()
-
-        print("returning: " + str(x) + "\t" +  str(dx) )
-
-        return x, dx, problem.chisq()
+#        print(problem.chisq())
+#        print("after", lsqerr.stderr(problem.cov()))
+        return x, dx, lsqerr.stderr(problem.cov())
 
     def execute(self, actions):
 
         self.step += 1
 #        print(self.step, len(self.remainingActions))
+        if ((len(self.remainingActions) == 0) or (self.step > 200)):
+            print(self.model.atomListModel.atomModels[0].z.value, self.prevStderr, self.totReward, self.step)
+            return self.state, True, -1
+
+        else:
+            terminal = False
+
 
 
         #TODO check action type, assuming index of action list
@@ -107,11 +122,12 @@ class PycrysfmlEnvironment(Environment):
 
 #        if (self.state[actions] == 1):
  #           return self.state, False, -10
-        print("______________________")
-        print(actions)
+#        print("______________________")
+#        print(actions)
 
         if self.state[actions] == 1:
-            return self.state, (self.step > 200), -1  #stop only if step > 200
+#            print(self.state[actions], self.step)
+            return self.state, False, -2  #stop only if step > 200
         else:
             self.state[actions] = 1
 
@@ -139,23 +155,19 @@ class PycrysfmlEnvironment(Environment):
 
         reward = -1
         #Need more data than parameters, have to wait to the second step to fit
-        if len(self.visited) > 1:
-            print(np.where(self.state==1))
-            print("model dets")
-            print(self.model.atomListModel.atomModels[0].x.value)
-            print(self.model.atomListModel.atomModels[0].y.value)
-            print(self.model.atomListModel.atomModels[0].z.value)
+        if len(self.visited) > 11:
+#            print(np.where(self.state==1))
+#            print("model dets")
+#            print(self.model.atomListModel.atomModels[0].x.value)
+#            print(self.model.atomListModel.atomModels[0].y.value)
+#            print(self.model.atomListModel.atomModels[0].z.value)
 
-            x, dx, chisq = self.fit(self.model)
+            x, dx, stderr = self.fit(self.model)
+#            print(x, dx)
 
-            print(x, dx)
-
-            if (self.prevChiSq != None and chisq < self.prevChiSq):
+            if ((not self.prevStderr is None) and stderr[0] < self.prevStderr[0]):
                 reward += 2
-                print(x, dx, chisq)
-
-#                indicies = np.where(self.state==1)
-
+		print(x, stderr)
 #                file = open("deepQ_fit_data.txt","a")
 #                file.write(str(indicies)+"\n")
 #                file.write(str(x[0])+"\t")
@@ -163,19 +175,19 @@ class PycrysfmlEnvironment(Environment):
 #                file.write(str(chisq)+"\n")
 #                file.close()
 
-#                self.state[self.step] = chisq
+            self.prevStderr = stderr
 
-            self.prevChiSq = chisq
+#            print(x,"\n", stderr,"\n", reward, "\n")
 
         self.totReward += reward
 
 
-        if (self.prevChiSq != None and self.step > 50 and chisq < 49):
-            return self.state, True, 5
-        elif (len(self.remainingActions) == 0 or self.step > 200):
-            terminal = True
-        else:
-            terminal = False
+#        if ((not self.prevStderr is None) and self.step > 50 and stderr[10] < 5):
+#         return self.state, True, 5
+#        elif (len(self.remainingActions) == 0 or self.step > 200):
+#            terminal = True
+#        else:
+#            terminal = False
 
 
 #        self.stateList.append(self.state.copy())
@@ -183,7 +195,6 @@ class PycrysfmlEnvironment(Environment):
 #        mpl.pyplot.savefig("state_space.png")
 
 
- #       print("finished exec")
         return self.state, terminal, reward
 
     @property

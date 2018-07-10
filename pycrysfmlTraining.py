@@ -89,10 +89,10 @@ def main():
                 network=network_spec,
             )
         )
-
-
+#    print("load agent")
+#    agent.restore_model(file="/mnt/storage/deepQmodel")
 #    pp_flat = Flatten()
-
+#    print("loaded agent")
     runner = Runner(
         agent=agent,
         environment=environment,
@@ -100,20 +100,24 @@ def main():
     )
 
     def episode_finished(r):
-        if r.episode % 10 == 0:
+        if r.episode % 50 == 0:
             sps = r.timestep / (time.time() - r.start_time)
-            logger.info("Finished episode {ep} after {ts} timesteps. Steps Per Second {sps}".format(ep=r.episode,
+            file = open("/mnt/storage/trainingLogStderr.txt", "a")
+            file.write("Finished episode {ep} after {ts} timesteps. Steps Per Second {sps}\n".format(ep=r.episode,
                                                                                                     ts=r.timestep,
                                                                                                     sps=sps))
-            logger.info("Episode reward: {}".format(r.episode_rewards[-1]))
-            logger.info("Episode timesteps: {}".format(r.episode_timestep))
-            logger.info("Average of last 500 rewards: {}".format(sum(r.episode_rewards[-500:]) / 500))
-            logger.info("Average of last 100 rewards: {}".format(sum(r.episode_rewards[-100:]) / 100))
+            file.write("Episode reward: {}\n".format(r.episode_rewards[-1]))
+            file.write("Episode timesteps: {}\n".format(r.episode_timestep))
+            file.write("Average of last 500 rewards: {}\n".format(sum(r.episode_rewards[-500:]) / 500))
+            file.write("Average of last 100 rewards: {}\n".format(sum(r.episode_rewards[-100:]) / 100))
+
+            agent.save_model(directory="/mnt/storage/deepQmodel_testing", append_timestep=False)
+
         return True
 
     runner.run(
         timesteps=60000000,
-        episodes=1,
+        episodes=105,
         max_episode_timesteps=1000,
         deterministic=False,
         episode_finished=episode_finished
