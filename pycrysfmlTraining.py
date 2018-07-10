@@ -11,6 +11,7 @@ import logging
 import json
 import gym
 import plotly
+import matplotlib.pyplot as plt
 
 from tensorforce import TensorForceError
 from tensorforce.execution import Runner
@@ -89,33 +90,40 @@ def main():
                 network=network_spec,
             )
         )
-
-
+#    print("load agent")
+#    agent.restore_model(file="/mnt/storage/deepQmodel")
 #    pp_flat = Flatten()
-
+#    print("loaded agent")
     runner = Runner(
         agent=agent,
         environment=environment,
         repeat_actions=1
     )
 
+    rewardsLog = []
+
     def episode_finished(r):
+
+        rewardsLog.append(r.episode_rewards[-1])
+
         if r.episode % 50 == 0:
             sps = r.timestep / (time.time() - r.start_time)
-            file = open("/mnt/storage/trainingLog.txt", "a")
-            file.write("Finished episode {ep} after {ts} timesteps. Steps Per Second {sps}".format(ep=r.episode,
+            file = open("/mnt/storage/trainingLogChisq.txt", "a")
+            file.write("Finished episode {ep} after {ts} timesteps. Steps Per Second {sps}\n".format(ep=r.episode,
                                                                                                     ts=r.timestep,
                                                                                                     sps=sps))
-            file.write("Episode reward: {}".format(r.episode_rewards[-1]))
-            file.write("Episode timesteps: {}".format(r.episode_timestep))
-            file.write("Average of last 500 rewards: {}".format(sum(r.episode_rewards[-500:]) / 500))
-            file.write("Average of last 100 rewards: {}".format(sum(r.episode_rewards[-100:]) / 100))
-        agent.save_model("/mnt/storage/", append_timestep=False)
+            file.write("Episode reward: {}\n".format(r.episode_rewards[-1]))
+            file.write("Episode timesteps: {}\n".format(r.episode_timestep))
+            file.write("Average of last 500 rewards: {}\n".format(sum(r.episode_rewards[-500:]) / 500))
+            file.write("Average of last 100 rewards: {}\n".format(sum(r.episode_rewards[-100:]) / 100))
+
+            agent.save_model(directory="/mnt/storage/deepQmodel_chisq", append_timestep=False)
+
         return True
 
     runner.run(
         timesteps=60000000,
-        episodes=1,
+        episodes=105,
         max_episode_timesteps=1000,
         deterministic=False,
         episode_finished=episode_finished
@@ -129,6 +137,9 @@ def main():
 #        state, terminal, reward = environment.execute(actions=action)
  #       processedState = pp_flat.process(state)
 #    environment.print_state()
+
+    plt.scatter(rewardsLog)
+    plt.saveFig('/mnt/storage/rewardLog.png')
 
     runner.close()
 

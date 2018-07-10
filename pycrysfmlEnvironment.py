@@ -16,6 +16,7 @@ import sxtal_model as S
 
 import  bumps.names  as bumps
 import bumps.fitters as fitter
+import bumps.lsqerror as lsqerr
 from bumps.formatnum import format_uncertainty_pm
 
 from tensorforce.environments import Environment
@@ -64,12 +65,12 @@ class PycrysfmlEnvironment(Environment):
         self.model.atomListModel.atomModels[0].B.range(0, 5)
         self.model.atomListModel.atomModels[1].B.range(0,5)
         self.model.atomListModel.atomModels[2].B.range(0,5)
-        self.model.atomListModel.atomModels[3].z.range(0,0.5)
+#        self.model.atomListModel.atomModels[3].z.range(0,0.5)
         self.model.atomListModel.atomModels[3].B.range(0,5)
         self.model.atomListModel.atomModels[4].B.range(0,5)
-        self.model.atomListModel.atomModels[5].x.range(0,0.5)
-        self.model.atomListModel.atomModels[5].y.range(0,0.5)
-        self.model.atomListModel.atomModels[5].z.range(0,0.5)
+#        self.model.atomListModel.atomModels[5].x.range(0,0.5)
+#        self.model.atomListModel.atomModels[5].y.range(0,0.5)
+#        self.model.atomListModel.atomModels[5].z.range(0,0.5)
         self.model.atomListModel.atomModels[5].B.range(0,5)
 
         #TODO: clean up excess vars
@@ -80,7 +81,7 @@ class PycrysfmlEnvironment(Environment):
             self.remainingActions.append(i)
 
         self.totReward = 0
-        self.prevChiSq = None
+        self.prevChisq = None
         self.step = 0
 
         self.state = np.zeros(len(self.refList))
@@ -93,21 +94,16 @@ class PycrysfmlEnvironment(Environment):
         #Create a problem from the model with bumps,
         #then fit and solve it
         problem = bumps.FitProblem(model)
+#        print("before: ", lsqerr.stderr(problem.cov()))
         fitted = fitter.LevenbergMarquardtFit(problem)
         x, dx = fitted.solve()
-
+#        print(problem.chisq())
+#        print("after", lsqerr.stderr(problem.cov()))
         return x, dx, problem.chisq()
 
     def execute(self, actions):
 
         self.step += 1
-#        print(self.step, len(self.remainingActions))
-        if ((len(self.remainingActions) == 0) or (self.step > 200)):
-            return self.state, True, -1
-        else:
-            terminal = False
-
-
 
         #TODO check action type, assuming index of action list
 #        print(actions)
@@ -121,7 +117,9 @@ class PycrysfmlEnvironment(Environment):
 #        print(actions)
 
         if self.state[actions] == 1:
-            return self.state, (self.step > 200), -1  #stop only if step > 200
+            print(self.refList[actions].hkl, self.step)
+            self.toReward -= 2
+            return self.state, False, -2  #stop only if step > 200
         else:
             self.state[actions] = 1
 
@@ -157,15 +155,11 @@ class PycrysfmlEnvironment(Environment):
 #            print(self.model.atomListModel.atomModels[0].z.value)
 
             x, dx, chisq = self.fit(self.model)
-
 #            print(x, dx)
 
-            if (self.prevChiSq != None and chisq < self.prevChiSq):
+            if (self.prevChisq != None and chisq < self.prevChisq):
                 reward += 2
-#                print(x, dx, chisq)
-
-#                indicies = np.where(self.state==1)
-
+		print(x, chisq)
 #                file = open("deepQ_fit_data.txt","a")
 #                file.write(str(indicies)+"\n")
 #                file.write(str(x[0])+"\t")
@@ -173,27 +167,20 @@ class PycrysfmlEnvironment(Environment):
 #                file.write(str(chisq)+"\n")
 #                file.close()
 
-#                self.state[self.step] = chisq
+            self.prevChisq = chisq
 
-            self.prevChiSq = chisq
+#            print(x,"\n", stderr,"\n", reward, "\n")
 
         self.totReward += reward
 
-
-        if (self.prevChiSq != None and self.step > 50 and chisq < 49):
+        if (self.prevChisq != None and self.step > 50 and chisq < 9):
             return self.state, True, 5
         elif (len(self.remainingActions) == 0 or self.step > 200):
+            print(self.model.atomListModel.atomModels[0].z.value, self.chisq, self.totReward, self.step)
             terminal = True
         else:
             terminal = False
 
-
-#        self.stateList.append(self.state.copy())
-#        fig = mpl.pyplot.pcolor(self.stateList, cmap="RdBu" )
-#        mpl.pyplot.savefig("state_space.png")
-
-
- #       print("finished exec")
         return self.state, terminal, reward
 
     @property
