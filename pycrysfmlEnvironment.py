@@ -94,17 +94,19 @@ class PycrysfmlEnvironment(Environment):
         #Create a problem from the model with bumps,
         #then fit and solve it
         problem = bumps.FitProblem(model)
+#        print("before: ", lsqerr.stderr(problem.cov()))
         fitted = fitter.LevenbergMarquardtFit(problem)
         x, dx = fitted.solve()
-
-        return x, dx, problem.chisq()
+#        print(problem.chisq())
+#        print("after", lsqerr.stderr(problem.cov()))
+        return x, dx, lsqerr.stderr(problem.cov())
 
     def execute(self, actions):
 
         self.step += 1
 
-
         if self.state[actions] == 1:
+
 #            print(self.refList[actions.item()].hkl, self.step)
             self.totReward -= 0.15
             return self.state, (self.step > 300), -0.15  #stop only if step > 200
@@ -155,6 +157,11 @@ class PycrysfmlEnvironment(Environment):
             terminal = True
         else:
             terminal = False
+
+#        self.stateList.append(self.state.copy())
+#        fig = mpl.pyplot.pcolor(self.stateList, cmap="RdBu" )
+#        mpl.pyplot.savefig("state_space.png")
+
 
         return self.state, terminal, reward
 

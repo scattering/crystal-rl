@@ -14,6 +14,7 @@ import sxtal_model as S
 
 import  bumps.names  as bumps
 import bumps.fitters as fitter
+import bumps.lsqerror as lsqerr
 from bumps.formatnum import format_uncertainty_pm
 
 #Simple Q learning algorithm to optimize a single parameter
@@ -163,22 +164,22 @@ def learn():
         file.close()
 
         #Decriment epsilon to exploit more as the model learns
-      #  epsilon = epsilon*epsDecriment
-      #  if (epsilon < minEps):
-      #     epsilon = minEps
+       epsilon = epsilon*epsDecriment
+        if (epsilon < minEps):
+           epsilon = minEps
 
 
         #Write qtable to a file every ten episodes
-#        if ((episode % 25) == 0):
-#            rewards.append(totReward)
-#            file = open("/mnt/storage/qtable.txt", "w")
-#            pickle.dump(qtable, file)
-#            file.close()
+        if ((episode % 25) == 0):
+            rewards.append(totReward)
+            file = open("/mnt/storage/qtable.txt", "w")
+            pickle.dump(qtable, file)
+            file.close()
 
-#            file = open("/mnt/storage/rewardsLog.txt", "w")
-#            file.write("episode: " + str(episode))
-#            file.write(str(rewards[:]))
-#            file.close
+            file = open("/mnt/storage/rewardsLog.txt", "w")
+            file.write("episode: " + str(episode))
+            file.write(str(rewards[:]))
+            file.close()
 
 def readQTable():
 
@@ -237,81 +238,80 @@ def readQTable():
 
 
 #Graph the chi squared values at different values of the aprameter (Pr: z) and write it to a file
-def printChi2():
+def fitFullModel():
 
 	cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
-#        cell.a.pm(0.5)
-#        cell.b.pm(0.5)
-#        cell.c.pm(0.5)
 
 	#Define a model
 	m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
         	[atomList], exclusions,
         	scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
 
-#        m.u.range(0,2)
-#        m.zero.pm(0.1)
-#        m.v.range(-2,0)
-#        m.w.range(0,2)
-#        m.eta.range(0,1)
-#        m.scale.range(0,10)
-#        m.base.pm(250)
+        m.u.range(0,2)
+        m.zero.pm(0.1)
+        m.v.range(-2,0)
+        m.w.range(0,2)
+        m.eta.range(0,1)
+        m.scale.range(0,10)
+        m.base.pm(250)
 
-#        for atomModel in m.atomListModel.atomModels:
-#            atomModel.x.pm(0.1)
-#            atomModel.z.pm(0.1)
-#            if (atomModel.atom.multip == atomModel.sgmultip):
-#                # atom lies on a general position
-#                atomModel.x.pm(0.1)
-#                atomModel.y.pm(0.1)
-#                atomModel.z.pm(0.1)
+        for atomModel in m.atomListModel.atomModels:
+            atomModel.x.pm(0.1)
+            atomModel.z.pm(0.1)
+            if (atomModel.atom.multip == atomModel.sgmultip):
+                # atom lies on a general position
+                atomModel.x.pm(0.1)
+                atomModel.y.pm(0.1)
+                atomModel.z.pm(0.1)
 
 	m.atomListModel.atomModels[0].z.value = 0.3
-	m.atomListModel.atomModels[0].z.range(0,0.5)
-    	problem = bumps.FitProblem(m)
-		#    monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
+	m.atomListModel.atomModels[0].z.range(0,0.5) 
 
+   	problem = bumps.FitProblem(m)
         fitted = fitter.SimplexFit(problem)
     	x, dx = fitted.solve(steps=50)
         problem.model_update()
+
         print(problem.summarize())
         print(x, dx, problem.chisq())
 
 
-#        x = sfs2
-#        y = m.theory()
-#        y = H.calcStructFact(refList, atomList, spaceGroup, wavelength, xtal=True)
+def plotSfs2():
 
-#        for i in range(len(y)):
- #             y[i] = y[i] * 0.06298
+	cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
+	m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
+        	[atomList], exclusions,
+        	scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
+	m.atomListModel.atomModels[0].z.range(0,0.5)
 
-#        plt.scatter(x, y)
-#        plt.savefig('sfs2s.png')
+        x = sfs2
+        y = m.theory()
+
+        plt.scatter(x, y)
+        plt.savefig('sfs2s.png')
+
+def graphError():
+
+	cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
+	m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
+        	[atomList], exclusions,
+        	scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
+	m.atomListModel.atomModels[0].z.range(0,0.5)
+
+        z = 0
+	xval = []
+	yval = []
+	while (z < 1):
+                xval.append(z)
+   		m.atomListModel.atomModels[0].z.value = z
+    		problem = bumps.FitProblem(m)
+                yval.append(lsqerr.stderr(problem.cov())[0])
+    		z += 0.005
+
+	fig = plt.figure()#
+	mpl.pyplot.scatter(xval, yval)
+	mpl.pyplot.xlabel("Pr z coordinate")
+	mpl.pyplot.ylabel("stderr value")
+	fig.savefig('/mnt/storage/prnio_stderr.png')
 
 
-#	z = 0
-#	xval = []
-#	y = []
-#	while (z < 1):
-
-	    	#Set a range on the x value of the first atom in the model
-#    		m.atomListModel.atomModels[0].z.value = z
-#    		m.atomListModel.atomModels[0].z.range(0, 1)
-#    		problem = bumps.FitProblem(m)
-	#    monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
-
-#    		y.append(problem.chisq())
-
-#        	fitted = fitter.LevenbergMarquardtFit(problem)
- #   		x, dx = fitted.solve(steps=50)
-#    		xval.append(z)
-#    		z += 0.005
-#        	print(x,dx,problem.chisq())
-#	fig = plt.figure()#
-#	mpl.pyplot.scatter(xval, y)
-#	mpl.pyplot.xlabel("Pr z coordinate")
-#	mpl.pyplot.ylabel("X2 value")
-#	fig.savefig('/mnt/storage/prnio_chisq_vals_optzd.png')
-
-
-printChi2()
