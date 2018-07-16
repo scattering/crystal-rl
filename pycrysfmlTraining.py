@@ -11,6 +11,8 @@ import logging
 import json
 import gym
 import plotly
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 from tensorforce import TensorForceError
@@ -23,7 +25,8 @@ from pycrysfmlEnvironment import PycrysfmlEnvironment
 
 from tensorforce.contrib.openai_gym import OpenAIGym
 
-
+#Based on quickstart and example code from 
+#TensorForce documentation
 def main():
 
     logger = logging.getLogger(__name__)
@@ -50,13 +53,13 @@ def main():
     network_spec = [
         {
             "type": "dense",
-            "size":  32,
-            "activation": "relu"
+            "size":  32
+#            "activation": "relu"
         },
         {
             "type": "dense",
-            "size": 32,
-            "activation": "relu"
+            "size": 32
+#            "activation": "relu"
         }
     ]
 
@@ -65,16 +68,6 @@ def main():
     infoFile = os.path.join(DATAPATH,r"prnio.cfl")
 
     environment = PycrysfmlEnvironment(observedFile, infoFile)
-
-
-#    agent = DQNAgent(
-#            states=environment.states,
-#            actions=environment.actions,
-#            network=network_spec,
-#            actions_exploration=EpsilonDecay()
-#            #TODO add in other params
-#        )
-
 
     if args.agent_config is not None:
         with open(args.agent_config, 'r') as fp:
@@ -90,10 +83,9 @@ def main():
                 network=network_spec,
             )
         )
-#    print("load agent")
-#    agent.restore_model(file="/mnt/storage/deepQmodel")
-#    pp_flat = Flatten()
-#    print("loaded agent")
+
+    #agent.restore_model(file="/mnt/storage/deepQmodel_chisq")
+
     runner = Runner(
         agent=agent,
         environment=environment,
@@ -101,14 +93,17 @@ def main():
     )
 
     rewardsLog = []
+    steps = []
 
     def episode_finished(r):
 
-        rewardsLog.append(r.episode_rewards[-1])
+        if r.episode % 10 == 0:
+            rewardsLog.append(r.episode_rewards[-1])
+            steps.append(r.episode)
 
         if r.episode % 50 == 0:
             sps = r.timestep / (time.time() - r.start_time)
-            file = open("/mnt/storage/trainingLogChisq.txt", "a")
+            file = open("/mnt/storage/trainingLogChisq_simpleA_stdreward", "a")
             file.write("Finished episode {ep} after {ts} timesteps. Steps Per Second {sps}\n".format(ep=r.episode,
                                                                                                     ts=r.timestep,
                                                                                                     sps=sps))
@@ -117,13 +112,13 @@ def main():
             file.write("Average of last 500 rewards: {}\n".format(sum(r.episode_rewards[-500:]) / 500))
             file.write("Average of last 100 rewards: {}\n".format(sum(r.episode_rewards[-100:]) / 100))
 
-            agent.save_model(directory="/mnt/storage/deepQmodel_chisq", append_timestep=False)
+            agent.save_model(directory="/mnt/storage/deepQmodel_simpleA_stdreward", append_timestep=False)
 
         return True
 
     runner.run(
         timesteps=60000000,
-        episodes=105,
+        episodes=5000,
         max_episode_timesteps=1000,
         deterministic=False,
         episode_finished=episode_finished
@@ -138,8 +133,8 @@ def main():
  #       processedState = pp_flat.process(state)
 #    environment.print_state()
 
-    plt.scatter(rewardsLog)
-    plt.saveFig('/mnt/storage/rewardLog.png')
+    plt.scatter(steps, rewardsLog)
+    plt.savefig('/mnt/storage/rewardLog_simpleA_stdreward.png')
 
     runner.close()
 
