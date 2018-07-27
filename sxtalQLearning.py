@@ -14,6 +14,7 @@ import sxtal_model as S
 
 import  bumps.names  as bumps
 import bumps.fitters as fitter
+import bumps.lsqerror as lsqerr
 from bumps.formatnum import format_uncertainty_pm
 import bumps.lsqerror as lsqerr
 
@@ -27,7 +28,7 @@ np.seterr(divide="ignore",invalid="ignore")
 DATAPATH = os.path.dirname(os.path.abspath(__file__))
 backgFile = None
 observedFile = os.path.join(DATAPATH,r"../prnio.int")
-infoFile = os.path.join(DATAPATH,r"../prnio.cfl")
+infoFile = os.path.join(DATAPATH,r"../prnio_optimized.cfl")
 
 #Read data
 spaceGroup, crystalCell, atomList = H.readInfo(infoFile)
@@ -37,6 +38,7 @@ tt = [H.twoTheta(H.calcS(crystalCell, ref.hkl), wavelength) for ref in refList]
 backg = None
 exclusions = []
 
+qtable = []
 
 def setInitParams():
 
@@ -70,7 +72,7 @@ def fit(model):
 def learn():
 
     #Q params
-    epsilon = 1
+    epsilon = 0
     minEps = 0.01
     epsDecriment = 0.95
 
@@ -86,7 +88,6 @@ def learn():
 
     qtable = np.zeros([len(refList)+1, len(refList)])    #qtable(state, action), first index of state is no data
 #    qtable = readQTable()
-
 
     for episode in range(maxEpisodes):
 
@@ -105,6 +106,7 @@ def learn():
 
 #        file = open("/mnt/storage/qtable-hkl-log-detailed" + str(episode) + ".txt", "a")
 #        file.write("HKL Reward TotalReward ChiSq\n")
+
         for step in range(maxSteps):
 
 	    reward = 0
@@ -139,6 +141,7 @@ def learn():
             model._set_observations(observed)
             model.update()
 
+            chisq = 0
             #Need more data than parameters, have to wait to the second step to fit
             if step > 0:
                 x, dx, chisq, prob = fit(model)
@@ -152,9 +155,16 @@ def learn():
                                                    qtable[stateIndex, actionIndex])
                 prevX2 = chisq
 
+                #print (str(action.hkl) + ":\t" +str(chisq) + "\t" + str(totReward)+ "\n")
+
             state = action
             stateIndex = actionIndex+1  #shifted up one for states, so that the first index is no data
             totReward += reward
+            hkl = str(action.hkl[0]) + " " + str(action.hkl[1]) + " " + str(action.hkl[2])
+            file.write(hkl + "\t" +str(reward) + "\t" + str(totReward)+ "\t" + str(chisq) + "\n")
+
+            #if (prevX2 != None and step > 50 and  chisq < 49):    #stop early if the fit is within certian bounds (i.e, "good enough")
+            #    break
 
 #            print(str(action.hkl[0])+ " " + str(action.hkl[1]) + " " + str(action.hkl[2]) + "\t" + str(reward) + "\t" + str(totReward) + "\t" + str(prevX2) + "\t" + str(model.atomListModel.atomModels[0].z.value)+ "\n")
 
@@ -164,7 +174,7 @@ def learn():
   #      file.close()
 
         #Decriment epsilon to exploit more as the model learns
-        epsilon = epsilon*epsDecriment
+       epsilon = epsilon*epsDecriment
         if (epsilon < minEps):
            epsilon = minEps
 
@@ -214,6 +224,33 @@ def readQTable():
     file.close()
     return qtable
 
+
+
+#model = setInitParams()
+#model.atomListModel.atomModels[0].z.value = 0.280903767178
+#visited = []
+#observed = []
+
+#visited = [refList[0], refList[25], refList[82], refList[140]]
+#indexs = [0, 25, 82, 140]
+
+#for actionIndex in indexs:
+            #Find the data for this hkl value and add it to the model
+#            model.refList = H.ReflectionList(visited)
+#            model._set_reflections()
+
+#            model.error.append(error[actionIndex])
+#            model.tt = np.append(model.tt, [tt[actionIndex]])
+
+#            observed.append(sfs2[actionIndex])
+#            model._set_observations(observed)
+#            model.update()
+
+#x, dx, chisq = fit(model)
+#print(x, dx, chisq)
+
+
+
 #if __name__ == "__main__":
     # program run normally
  #   learn()
@@ -232,11 +269,12 @@ def readQTable():
 #    problem = bumps.FitProblem(m)
 
 
-learn()
+#qtable = readQTable()
+#learn()
 
 
 #Graph the chi squared values at different values of the aprameter (Pr: z) and write it to a file
-def printChi2():
+def fitFullModel():
 
 	cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
 
@@ -245,7 +283,58 @@ def printChi2():
         	[atomList], exclusions,
         	scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
 
-	z = 0
+        m.u.range(0,2)
+        m.zero.pm(0.1)
+        m.v.range(-2,0)
+        m.w.range(0,2)
+        m.eta.range(0,1)
+        m.scale.range(0,10)
+        m.base.pm(250)
+
+        for atomModel in m.atomListModel.atomModels:
+            atomModel.x.pm(0.1)
+            atomModel.z.pm(0.1)
+            if (atomModel.atom.multip == atomModel.sgmultip):
+                # atom lies on a general position
+                atomModel.x.pm(0.1)
+                atomModel.y.pm(0.1)
+                atomModel.z.pm(0.1)
+
+	m.atomListModel.atomModels[0].z.value = 0.3
+	m.atomListModel.atomModels[0].z.range(0,0.5) 
+
+   	problem = bumps.FitProblem(m)
+        fitted = fitter.SimplexFit(problem)
+    	x, dx = fitted.solve(steps=50)
+        problem.model_update()
+
+        print(problem.summarize())
+        print(x, dx, problem.chisq())
+
+
+def plotSfs2():
+
+	cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
+	m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
+        	[atomList], exclusions,
+        	scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
+	m.atomListModel.atomModels[0].z.range(0,0.5)
+
+        x = sfs2
+        y = m.theory()
+
+        plt.scatter(x, y)
+        plt.savefig('sfs2s.png')
+
+def graphError():
+
+	cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
+	m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
+        	[atomList], exclusions,
+        	scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
+	m.atomListModel.atomModels[0].z.range(0,0.5)
+
+        z = 0
 	xval = []
 	y = []
 	while (z < 0.5):
@@ -263,8 +352,8 @@ def printChi2():
                 print(x, problem.chisq())
     		z += 0.005
 
-	fig = plt.figure()
-	mpl.pyplot.plot(xval, y)
+	fig = plt.figure()#
+	mpl.pyplot.scatter(xval, yval)
 	mpl.pyplot.xlabel("Pr z coordinate")
 	mpl.pyplot.ylabel("X2 value")
 	fig.savefig('/mnt/storage/prnio_chisq_vals_optcfl_lm.png')
