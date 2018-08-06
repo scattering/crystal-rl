@@ -29,22 +29,18 @@ class PycrysfmlEnvironment(Environment):
 
     def __init__(self,  observedFile, infoFile, backgFile=None, sxtal=True):
 
-        if sxtal:
+        #Read data
+        self.spaceGroup, self.crystalCell, self.atomList = H.readInfo(infoFile)
 
-            #Read data
-            self.spaceGroup, self.crystalCell, self.atomList = H.readInfo(infoFile)
-
-            # return wavelength, refList, sfs2, error, two-theta, and four-circle parameters
-            wavelength, refList, sfs2, error = S.readIntFile(observedFile, kind="int", cell=self.crystalCell)
-            self.wavelength = wavelength
-            self.refList = refList
-            self.sfs2 = sfs2
-            self.error = error
-            self.tt = [H.twoTheta(H.calcS(self.crystalCell, ref.hkl), wavelength) for ref in refList]
-            self.backg = None
-            self.exclusions = []
-
-        #TODO: else, for powder data
+         # return wavelength, refList, sfs2, error, two-theta, and four-circle parameters
+        wavelength, refList, sfs2, error = S.readIntFile(observedFile, kind="int", cell=self.crystalCell)
+        self.wavelength = wavelength
+        self.refList = refList
+        self.sfs2 = sfs2
+        self.error = error
+        self.tt = [H.twoTheta(H.calcS(self.crystalCell, ref.hkl), wavelength) for ref in refList]
+        self.backg = None
+        self.exclusions = []
 
         self.reset()
 
@@ -62,18 +58,7 @@ class PycrysfmlEnvironment(Environment):
         #Set a range on the x value of the first atom in the model
         self.model.atomListModel.atomModels[0].z.value = 0.3
         self.model.atomListModel.atomModels[0].z.range(0,0.5)
-#        self.model.atomListModel.atomModels[0].B.range(0, 5)
-#        self.model.atomListModel.atomModels[1].B.range(0,5)
-#        self.model.atomListModel.atomModels[2].B.range(0,5)
-#        self.model.atomListModel.atomModels[3].z.range(0,0.5)
-#        self.model.atomListModel.atomModels[3].B.range(0,5)
-#        self.model.atomListModel.atomModels[4].B.range(0,5)
-#        self.model.atomListModel.atomModels[5].x.range(0,0.5)
-#        self.model.atomListModel.atomModels[5].y.range(0,0.5)
-#        self.model.atomListModel.atomModels[5].z.range(0,0.5)
-#        self.model.atomListModel.atomModels[5].B.range(0,5)
 
-        #TODO: clean up excess vars
         self.visited = []
         self.observed = []
         self.remainingActions = []
@@ -94,26 +79,21 @@ class PycrysfmlEnvironment(Environment):
         #Create a problem from the model with bumps,
         #then fit and solve it
         problem = bumps.FitProblem(model)
-#        print("before: ", lsqerr.stderr(problem.cov()))
         fitted = fitter.LevenbergMarquardtFit(problem)
         x, dx = fitted.solve()
-#        print(problem.chisq())
-#        print("after", lsqerr.stderr(problem.cov()))
-        return x, dx, lsqerr.stderr(problem.cov())
+
+        return x, dx, problem.chisq()
 
     def execute(self, actions):
 
         self.step += 1
 
+        # negative reward for repeat actions
         if self.state[actions] == 1:
-
-#            print(self.refList[actions.item()].hkl, self.step)
             self.totReward -= 0.15
-            return self.state, (self.step > 300), -0.15  #stop only if step > 200
+            return self.state, (self.step > 300), -0.15  #stop only if step > 300
         else:
             self.state[actions] = 1
-
-
 
         #No repeats
         self.visited.append(self.refList[actions.item()])
@@ -136,32 +116,21 @@ class PycrysfmlEnvironment(Environment):
         if len(self.visited) > 11:
 
             x, dx, chisq = self.fit(self.model)
-#            print(x, chisq)
-
-#            problem = bumps.FitProblem(self.model)
-#            stderr = lsqerr.stderr(problem.cov())
 
             if (self.prevChisq != None and chisq < self.prevChisq):
                 reward = 0.1
 
             self.prevChisq = chisq
 
-#            print(x,"\n", stderr,"\n", reward, "\n")
-
         self.totReward += reward
 
-        if (self.prevChisq != None and self.step > 50 and chisq < 50):
+        #stop early if chisq drops under certain threshold
+        if (self.prevChisq != None and self.step > 50 and chisq < 1):
             return self.state, True, 0.5
         if (len(self.remainingActions) == 0 or self.step > 300):
-#            print(self.model.atomListModel.atomModels[0].z.value, self.prevChisq, self.totReward, self.step)
             terminal = True
         else:
             terminal = False
-
-#        self.stateList.append(self.state.copy())
-#        fig = mpl.pyplot.pcolor(self.stateList, cmap="RdBu" )
-#        mpl.pyplot.savefig("state_space.png")
-
 
         return self.state, terminal, reward
 
@@ -171,18 +140,8 @@ class PycrysfmlEnvironment(Environment):
 
     @property
     def actions(self):
-
-        #TODO limit to remaining options (no repeats)
-        #TODO set up to have the hkls, so it can be generalized
         return dict(num_actions=len(self.refList), type='int')
 
-#    @actions.setter
-#    def actions(self, value):
-#        self._actions = value
-
-
-    #_______________________________________________
-    #TODO: read, understand, improve for my purposes
     @staticmethod
     def from_spec(spec,     kwargs):
         """
