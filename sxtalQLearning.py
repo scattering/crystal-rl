@@ -16,6 +16,7 @@ import  bumps.names  as bumps
 import bumps.fitters as fitter
 import bumps.lsqerror as lsqerr
 from bumps.formatnum import format_uncertainty_pm
+import bumps.lsqerror as lsqerr
 
 #Simple Q learning algorithm to optimize a single parameter
 #Will determine the optimal order of measurements to make
@@ -87,6 +88,9 @@ def learn():
     maxEpisodes = 5000
     maxSteps = len(refList)
     rewards = []
+    steps = []
+    zvals = []
+    chisqs = []
 
     qtable = np.zeros([len(refList)+1, len(refList)])    #qtable(state, action), first index of state is no data
     #qtable = readQTable()    --- use this line instead to read in a pre-trained table
@@ -97,6 +101,7 @@ def learn():
         prevX2 = None
 
         remainingRefs = []
+
         for i in range(len(refList)):
             remainingRefs.append(i)
 
@@ -146,11 +151,11 @@ def learn():
             chisq = 0
             #Need more data than parameters, have to wait to the second step to fit
             if step > 0:
-                x, dx, chisq = fit(model)
+                x, dx, chisq, prob = fit(model)
 
                 reward -= 1
                 if (prevX2 != None and chisq < prevX2):
-                    reward += 1.5
+                    reward = 1/chisq
 
                 #Update the Q table
                 qtable[stateIndex, actionIndex] =  qtable[stateIndex, actionIndex] + \
@@ -169,29 +174,60 @@ def learn():
             if (prevX2 != None and step > 50 and  chisq < 1):    #stop early if the fit is within certian bounds (i.e, "good enough")
                 break
 
-        file.close()
+#            print(str(action.hkl[0])+ " " + str(action.hkl[1]) + " " + str(action.hkl[2]) + "\t" + str(reward) + "\t" + str(totReward) + "\t" + str(prevX2) + "\t" + str(model.atomListModel.atomModels[0].z.value)+ "\n")
+
+            if (prevX2 != None and step > 50 and  chisq < 10):    #stop early if the fit is within certian bounds (i.e, "good enough")
+                break
+
+  #      file.close()
 
        #Decriment epsilon to exploit more as the model learns
        epsilon = epsilon*epsDecriment
         if (epsilon < minEps):
            epsilon = minEps
 
+#        model.plot()
 
         #Write qtable to a file every ten episodes
-        if ((episode % 25) == 0):
+        if ((episode % 15) == 0):
             rewards.append(totReward)
-            file = open("/mnt/storage/qtable.txt", "w")
+            chisqs.append(prevX2)
+            zvals.append(model.atomListModel.atomModels[0].z.value)
+            steps.append(episode)
+
+        if((episode % 50) == 0):
+            file = open("/mnt/storage/qtable-full-run4.txt", "w")
             pickle.dump(qtable, file)
             file.close()
 
-            file = open("/mnt/storage/rewardsLog.txt", "w")
+            file = open("/mnt/storage/rewardsLog-qtable-full-run4.txt", "w")
             file.write("episode: " + str(episode))
             file.write(str(rewards[:]))
             file.close()
 
+        if((episode % 500) == 0):
+
+            plt.scatter(steps, rewards)
+            plt.xlabel("Episodes")
+            plt.ylabel("Reward")
+            plt.savefig('/mnt/storage/rewards-qtable-full-training4-reward.png')
+            plt.close()
+
+            plt.scatter(steps, chisqs)
+            plt.xlabel("Episodes")
+            plt.ylabel("Final Chi Squared Value")
+            plt.savefig('/mnt/storage/rewards-qtable-full-training4-chi.png')
+            plt.close()
+
+            plt.scatter(steps, zvals)
+            plt.xlabel("Episodes")
+            plt.ylabel("Z Value")
+            plt.savefig('/mnt/storage/rewards-qtable-full-training4-z.png')
+            plt.close()
+
 def readQTable():
 
-    file = open("/mnt/storage/qtable.txt", "r")
+    file = open("/mnt/storage/qtable-full-run3.txt", "r")
     qtable = pickle.load(file)
     file.close()
     return qtable
@@ -263,18 +299,25 @@ def graphError():
 
         z = 0
 	xval = []
-	yval = []
-	while (z < 1):
-                xval.append(z)
-   		m.atomListModel.atomModels[0].z.value = z
+	y = []
+	while (z < 0.5):
+
+	    	#Set a range on the x value of the first atom in the model
+    		m.atomListModel.atomModels[0].z.value = z
+    		m.atomListModel.atomModels[0].z.range(0, 0.5)
     		problem = bumps.FitProblem(m)
-                yval.append(lsqerr.stderr(problem.cov())[0])
+		#    monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
+
+        	fitted = fitter.LevenbergMarquardtFit(problem)
+    		x, dx = fitted.solve()
+    		xval.append(x[0])
+    		y.append(problem.chisq())
+                print(x, problem.chisq())
     		z += 0.005
 
 	fig = plt.figure()#
 	mpl.pyplot.scatter(xval, yval)
 	mpl.pyplot.xlabel("Pr z coordinate")
-	mpl.pyplot.ylabel("stderr value")
-	fig.savefig('/mnt/storage/prnio_stderr.png')
-
+	mpl.pyplot.ylabel("X2 value")
+	fig.savefig('/mnt/storage/prnio_chisq_vals_optcfl_lm.png')
 
