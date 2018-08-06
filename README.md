@@ -9,6 +9,7 @@ This is a set of Reinforcement Learning algorithms for use with pycrysfml. They 
 First set up and install pycrysfml. Follow the commands in the instructions file in pycrysfml/doc/Ubuntu_deps.txt
 
 Then, replace pycrysfml/hklgen/sxtal_model.py with the sxtal_model.py file in this repository. This updates the model class to accept empty lists for the observed data, so you can create a model without giving it all of the initial data.
+Replace the prnio.cfl file in pycrysfml/hklgen/examples/sxtal/prnio.cfl with the prnio_optimized.cfl file. This file contains optimized atomic position values from fitting the data with FullProf. It will allow you to get better fits on the praseodymium nickolate crsytal model when only fitting a single parameter.
 
 ### Code
 
@@ -16,8 +17,7 @@ This code is designed to be run from:
 
      pycrysfml/hklgen/examples/sxtal/crystal-rl/sxtalQLearning.py
 
-The sxtalQLearning program is a simple Q Learning algorithm for use with the praseodymium nickolate data. Replace the prnio.cfl file in pycrysfml/hklgen/examples/sxtal/prnio.cfl with the prnio_optimized.cfl file
-This file contains optimized atomic position values from fitting the data with FullProf. It will allow you to get better fits on the praseodymium nickolate crsytal model when only fitting a single parameter.
+The sxtalQLearning program is a simple Q Learning algorithm for use with the praseodymium nickolate data. 
 Adjust the files to write output to write to your desired file names and run the code with the command:
 
     python sxtalQLearning.py
