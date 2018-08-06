@@ -39,6 +39,7 @@ exclusions = []
 
 qtable = []
 
+#Set up initial model parameters
 def setInitParams():
 
     #Make a cell
@@ -50,40 +51,45 @@ def setInitParams():
                 scale=0.06298, error=[],  extinction=[0.0001054])
 
     #Set a range on the x value of the first atom in the model
+    #Replace this code with references to the parameters you would like to fit the model to
     m.atomListModel.atomModels[0].z.value = 0.3
     m.atomListModel.atomModels[0].z.range(0,0.5)
 
     return m
-
 
 def fit(model):
 
     #Create a problem from the model with bumps,
     #then fit and solve it
     problem = bumps.FitProblem(model)
-    monitor = fitter.StepMonitor(problem, open("sxtalFitMonitor.txt","w"))
-
     fitted = fitter.LevenbergMarquardtFit(problem)
-    x, dx = fitted.solve(monitors=[monitor])
+    x, dx = fitted.solve()
 
+    #return:
+    # x: parameter values
+    # dx: uncertainty on parameters
+    # chi squared value for model
     return x, dx, problem.chisq()
 
-
+#Train the Q Learning Agent
 def learn():
 
-    #Q params
-    epsilon = 0
+    #Epsilon annulement
+    epsilon = 1
     minEps = 0.01
     epsDecriment = 0.95
 
+    #Q Learning Parameters
     alpha = .01
     gamma = .9
 
-    maxEpisodes = 5
+    #Training Parameters
+    maxEpisodes = 5000
     maxSteps = len(refList)
     rewards = []
 
- #   qtable = np.zeros([len(refList)+1, len(refList)])    #qtable(state, action), first index of state is no data
+    qtable = np.zeros([len(refList)+1, len(refList)])    #qtable(state, action), first index of state is no data
+    #qtable = readQTable()    --- use this line instead to read in a pre-trained table
 
     for episode in range(maxEpisodes):
 
@@ -99,8 +105,9 @@ def learn():
         totReward = 0
         stateIndex = 0
 
-        file = open("/mnt/storage/agentPath_trained_" + str(episode) +".txt", 'w') 
-        file.write("HKL value\tReward\tTotal Reward\tChi Squared Value\n")
+        #Code to log hkl paths
+#        file = open("/mnt/storage/agentPath_trained_" + str(episode) +".txt", 'w') 
+#        file.write("HKL value\tReward\tTotal Reward\tChi Squared Value\n")
 
         for step in range(maxSteps):
 
@@ -145,6 +152,7 @@ def learn():
                 if (prevX2 != None and chisq < prevX2):
                     reward += 1.5
 
+                #Update the Q table
                 qtable[stateIndex, actionIndex] =  qtable[stateIndex, actionIndex] + \
                                                    alpha*(reward + gamma*(np.max(qtable[stateIndex,:])) - \
                                                    qtable[stateIndex, actionIndex])
@@ -155,15 +163,15 @@ def learn():
             state = action
             stateIndex = actionIndex+1  #shifted up one for states, so that the first index is no data
             totReward += reward
-            hkl = str(action.hkl[0]) + " " + str(action.hkl[1]) + " " + str(action.hkl[2])
-            file.write(hkl + "\t" +str(reward) + "\t" + str(totReward)+ "\t" + str(chisq) + "\n")
+#            hkl = str(action.hkl[0]) + " " + str(action.hkl[1]) + " " + str(action.hkl[2])
+#            file.write(hkl + "\t" +str(reward) + "\t" + str(totReward)+ "\t" + str(chisq) + "\n")
 
-            #if (prevX2 != None and step > 50 and  chisq < 49):    #stop early if the fit is within certian bounds (i.e, "good enough")
-            #    break
+            if (prevX2 != None and step > 50 and  chisq < 1):    #stop early if the fit is within certian bounds (i.e, "good enough")
+                break
 
         file.close()
 
-        #Decriment epsilon to exploit more as the model learns
+       #Decriment epsilon to exploit more as the model learns
        epsilon = epsilon*epsDecriment
         if (epsilon < minEps):
            epsilon = minEps
@@ -188,54 +196,9 @@ def readQTable():
     file.close()
     return qtable
 
-
-
-#model = setInitParams()
-#model.atomListModel.atomModels[0].z.value = 0.280903767178
-#visited = []
-#observed = []
-
-#visited = [refList[0], refList[25], refList[82], refList[140]]
-#indexs = [0, 25, 82, 140]
-
-#for actionIndex in indexs:
-            #Find the data for this hkl value and add it to the model
-#            model.refList = H.ReflectionList(visited)
-#            model._set_reflections()
-
-#            model.error.append(error[actionIndex])
-#            model.tt = np.append(model.tt, [tt[actionIndex]])
-
-#            observed.append(sfs2[actionIndex])
-#            model._set_observations(observed)
-#            model.update()
-
-#x, dx, chisq = fit(model)
-#print(x, dx, chisq)
-
-
-
-#if __name__ == "__main__":
+if __name__ == "__main__":
     # program run normally
- #   learn()
-#else:
-    # called using bumps
-#    cell = Mod.makeCell(crystalCell, spaceGroup.xtalSystem)
-
-#    m = S.Model(tt, sfs2, backg, wavelength, spaceGroup, cell,
-#            [atomList], exclusions,
-#            scale=0.06298,hkls=refList, error=error,  extinction=[0.0001054])
-
-#    Set a range on the x value of the first atom in the model
-#    m.atomListModel.atomModels[0].z.range(0, 1)
-#    m.atomListModel.atomModels[0].z.value = 0.5
-
-#    problem = bumps.FitProblem(m)
-
-
-#qtable = readQTable()
-#learn()
-
+    learn()
 
 #Graph the chi squared values at different values of the aprameter (Pr: z) and write it to a file
 def fitFullModel():
